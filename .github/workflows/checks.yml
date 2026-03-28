@@ -111,8 +111,10 @@ jobs:
         uses: bazel-contrib/setup-bazelisk@v3
       - name: Bazel version
         run: bazelisk version
-      - name: Bazel M0 smoke build
-        run: bazelisk build //:smoke --config=ci
+      - name: Bazel M0 smoke + M1 proto graph
+        run: |
+          bazelisk build //:smoke --config=ci
+          bazelisk build //pb:demo_proto //pb:go_grpc_protos --config=ci
       - name: Bazel lint wrappers (Make-backed)
         run: bazelisk run //:lint
 

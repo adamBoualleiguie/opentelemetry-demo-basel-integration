@@ -1,0 +1,43 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+# BZ-030: canonical proto_library for oteldemo API.
+proto_library(
+    name = "demo_proto",
+    srcs = ["demo.proto"],
+)
+
+# BZ-031: Go + gRPC (protoc-gen-go + protoc-gen-go-grpc via rules_go).
+_GO_GRPC_COMPILERS = [
+    "@rules_go//proto:go_proto",
+    "@rules_go//proto:go_grpc_v2",
+]
+
+go_proto_library(
+    name = "demo_go_proto_checkout",
+    compilers = _GO_GRPC_COMPILERS,
+    importpath = "github.com/open-telemetry/opentelemetry-demo/src/checkout/genproto/oteldemo",
+    protos = [":demo_proto"],
+)
+
+go_proto_library(
+    name = "demo_go_proto_product_catalog",
+    compilers = _GO_GRPC_COMPILERS,
+    importpath = "github.com/opentelemetry/opentelemetry-demo/src/product-catalog/genproto/oteldemo",
+    protos = [":demo_proto"],
+)
+
+# Builds both Go gRPC codegen targets (CI: `bazel build //pb:go_grpc_protos`).
+filegroup(
+    name = "go_grpc_protos",
+    srcs = [],
+    data = [
+        ":demo_go_proto_checkout",
+        ":demo_go_proto_product_catalog",
+    ],
+)

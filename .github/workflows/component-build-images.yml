@@ -38,6 +38,15 @@ jobs:
         run: make clean docker-generate-protobuf
       - name: Check Clean Work Tree
         run: make check-clean-work-tree
+      # M1 (BZ-038): dual-run — Bazel must compile the same API from pb/demo.proto (Go + descriptor).
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+      - name: Set up Bazelisk
+        uses: bazel-contrib/setup-bazelisk@v3
+      - name: Bazel proto graph
+        run: bazelisk build //pb:demo_proto //pb:go_grpc_protos --config=ci
 
   build_and_push_images:
     runs-on: ubuntu-latest

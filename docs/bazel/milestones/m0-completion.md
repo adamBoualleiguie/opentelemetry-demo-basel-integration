@@ -42,7 +42,7 @@ bazelisk query //...
 | ID | Task | Status | What was done |
 |----|------|--------|----------------|
 | **BZ-010** | `.bazelversion` + Bazelisk | Done | Created `.bazelversion` pinning **Bazel 7.4.1** (matches `bazelisk version` resolution). Contributors should use [Bazelisk](https://github.com/bazelbuild/bazelisk). |
-| **BZ-011** | `MODULE.bazel` (Bzlmod) | Done | Added root `MODULE.bazel` with `module(name = "otel_demo", version = "0.0.0")`. No external `bazel_dep` yet (M1+ will add rules_proto, rules_go, etc.). |
+| **BZ-011** | `MODULE.bazel` (Bzlmod) | Done | Added root `MODULE.bazel` with `module(name = "otel_demo", version = "0.0.0")`. *M1 added `protobuf`, `rules_go`, and `gazelle` — see `m1-completion.md`.* |
 | **BZ-012** | Root `BUILD.bazel` + smoke | Done | Root `BUILD.bazel` defines `genrule` **`//:smoke`** → `bazel-bin/smoke.txt` with content marker `bazel-m0-smoke-ok`. Verified: `bazelisk build //:smoke --config=ci`. |
 | **BZ-013** | `.bazelrc` profiles | Done | Added `.bazelrc`: `common --enable_bzlmod`; `build:dev`, `build:ci`, `build:release`, `build:integration` placeholders; `test:ci --test_output=errors`. CI smoke uses `--config=ci`. |
 | **BZ-014** | `.bazelignore` | Done | Added `.bazelignore` for `.git`, `node_modules`, Bazel symlinks, RN/Pods, `.venv`, `src/shipping/target`, `.gradle`, `.next`, `out`. Speeds `query` / analysis. |
@@ -65,7 +65,7 @@ bazelisk query //...
 
 | ID | Task | Status | What was done |
 |----|------|--------|----------------|
-| **BZ-610** | GitHub Actions Bazel smoke | Done | In `.github/workflows/checks.yml`, added job **`bazel_smoke`**: checkout; **Go**; **Node 20**; **Python**; `npm install`; `make install-yamllint`; **setup-bazelisk**; `bazelisk version`; `bazelisk build //:smoke --config=ci`; `bazelisk run //:lint`. Job has **`continue-on-error: true`** (non-blocking). **`build-test`** now **needs** `bazel_smoke` so the job runs before the aggregate result (failed bazel job still yields success for dependency purposes when continue-on-error applies). |
+| **BZ-610** | GitHub Actions Bazel smoke | Done | In `.github/workflows/checks.yml`, added job **`bazel_smoke`**: checkout; **Go**; **Node 20**; **Python**; `npm install`; `make install-yamllint`; **setup-bazelisk**; `bazelisk version`; `bazelisk build //:smoke --config=ci`; `bazelisk run //:lint`. Job has **`continue-on-error: true`** (non-blocking). **`build-test`** now **needs** `bazel_smoke` so the job runs before the aggregate result (failed bazel job still yields success for dependency purposes when continue-on-error applies). *M1 extended the Bazel build step to include `//pb:demo_proto` and `//pb:go_grpc_protos` (see `m1-completion.md`).* |
 
 ---
 
@@ -88,7 +88,7 @@ bazelisk query //...
 | `docs/bazel/baselines.md` | Added |
 | `docs/bazel/risk-register.md` | Added |
 | `docs/bazel/build-style.md` | Added |
-| `docs/bazel/m0-completion.md` | Added (this file) |
+| `docs/bazel/milestones/m0-completion.md` | Added (this file) |
 | `.github/workflows/checks.yml` | Updated (`bazel_smoke`, `build-test` needs) |
 | `.gitignore` | Updated (`/bazel-*`) |
 

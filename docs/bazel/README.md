@@ -2,7 +2,9 @@
 
 | Document | Description |
 |----------|-------------|
-| [m0-completion.md](./m0-completion.md) | **M0 done:** workspace bootstrap, lint wrappers, CI smoke, file inventory |
+| [milestones/m0-completion.md](./milestones/m0-completion.md) | **M0:** workspace bootstrap, lint wrappers, CI smoke |
+| [milestones/m1-completion.md](./milestones/m1-completion.md) | **M1:** proto graph in Bazel, dual-run protobuf CI |
+| [proto-policy.md](./proto-policy.md) | Generated code vs Bazel policy (BZ-037) |
 | [charter.md](./charter.md) | Migration charter and branch strategy |
 | [service-tracker.md](./service-tracker.md) | Per-service migration status |
 | [baselines.md](./baselines.md) | Performance / CI baseline template |

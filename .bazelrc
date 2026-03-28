@@ -4,7 +4,7 @@
 # M0: Bzlmod-only workspace (no WORKSPACE dependencies).
 common --enable_bzlmod
 
-# --- Profiles (see docs/bazel/m0-completion.md) ---
+# --- Profiles (see docs/bazel/milestones/m0-completion.md) ---
 build:dev --announce_rc
 
 build:ci --announce_rc
