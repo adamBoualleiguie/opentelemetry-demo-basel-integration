@@ -81,3 +81,25 @@ to stay compatible with the old version of Flagd-ui:
 
 * `/read-file` (`GET`)
 * `/write-to-file` (`POST`)
+
+## Bazel (build, test, OCI)
+
+This service is also wired for **Bazel** (**BZ-094**): host **Elixir** / **OTP** (match **`src/flagd-ui/Dockerfile`**: **Elixir 1.19.3**, **OTP 28.0.2**), **`gcc`** / **`build-essential`**, and **`git`** (for the **heroicons** git dependency). Builds use **Hex** and **network** during **`mix deps.get`** — targets carry **`requires-network`**.
+
+| Target | Role |
+|--------|------|
+| **`//src/flagd-ui:flagd_ui_publish`** | Runs **`mix release`** into a declared directory ( **`//tools/bazel:mix_release.bzl`** **`mix_release`** ). |
+| **`//src/flagd-ui:flagd_ui_image`** / **`flagd_ui_load`** | **`rules_oci`** image on **`debian:bullseye-20251117-slim`** → **`otel/demo-flagd-ui:bazel`**. |
+| **`//src/flagd-ui:flagd_ui_mix_test`** | **`sh_test`** → **`mix test`** (**`tags = ["unit", "requires-network"]`**, **`size = "enormous"`**). |
+
+```bash
+# Requires `mix` on PATH (e.g. erlef/setup-beam locally or in CI).
+bazel build //src/flagd-ui:flagd_ui_publish //src/flagd-ui:flagd_ui_image --config=ci
+bazel test //src/flagd-ui:flagd_ui_mix_test --config=ci
+bazel test //src/flagd-ui:flagd_ui_mix_test --config=unit
+# optional: bazel run //src/flagd-ui:flagd_ui_load && docker image ls | grep otel/demo-flagd-ui
+```
+
+**Why not `rules_elixir`?** Upstream **BCR** **`rules_elixir`** targets raw Elixir/OTP graphs; this **Phoenix** app uses **Mix**, **esbuild**, **Tailwind**, and a **git** dep — the maintainers mirror the **Dockerfile** pipeline with a small **`mix_release`** rule (same idea as **`dotnet_publish`** for .NET).
+
+**Runtime env** for **`docker run`**: set **`SECRET_KEY_BASE`**, **`OTEL_EXPORTER_OTLP_ENDPOINT`**, **`FLAGD_UI_PORT`**, **`PHX_HOST`**, etc., as in **`config/runtime.exs`** (same as Compose).

@@ -107,6 +107,15 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Set up Elixir / OTP (flagd-ui Bazel — matches src/flagd-ui/Dockerfile)
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.19.3'
+          otp-version: '28.0.2'
+      - name: Install build deps for flagd-ui mix release
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git
       - name: npm install (root dev tools)
         run: npm install
       - name: Install yamllint
@@ -130,7 +139,8 @@ jobs:
           bazelisk build //src/shipping:shipping //src/shipping:shipping_image --config=ci
           bazelisk build //src/currency:currency //src/currency:currency_image --config=ci
           bazelisk build //src/email:email //src/email:email_image --config=ci
-          bazelisk test //src/checkout/... //src/product-catalog/... //src/shipping/... //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/frontend:lint --config=ci
+          bazelisk build //src/flagd-ui:flagd_ui_publish //src/flagd-ui:flagd_ui_image --config=ci
+          bazelisk test //src/checkout/... //src/product-catalog/... //src/shipping/... //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test //src/frontend:lint --config=ci
       - name: Bazel lint wrappers (Make-backed)
         run: bazelisk run //:lint
 

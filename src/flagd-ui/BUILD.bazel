@@ -1,0 +1,77 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-094: Phoenix flagd-ui — host `mix release` (//tools/bazel:mix_release.bzl), sh_test for `mix test`, OCI on Debian slim.
+
+load("//tools/bazel:mix_release.bzl", "mix_release")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+package(default_visibility = ["//visibility:public"])
+
+_FLAGD_UI_SRC_GLOBS = [
+    "mix.exs",
+    "mix.lock",
+    ".formatter.exs",
+    "config/**",
+    "lib/**",
+    "assets/**",
+    "priv/**",
+    "rel/**",
+]
+
+filegroup(
+    name = "flagd_ui_release_srcs",
+    srcs = glob(_FLAGD_UI_SRC_GLOBS),
+)
+
+filegroup(
+    name = "flagd_ui_test_data",
+    srcs = glob(_FLAGD_UI_SRC_GLOBS + ["test/**"]),
+)
+
+mix_release(
+    name = "flagd_ui_publish",
+    srcs = [":flagd_ui_release_srcs"],
+    release_app = "flagd_ui",
+    tags = ["requires-network"],
+)
+
+sh_test(
+    name = "flagd_ui_mix_test",
+    srcs = ["run_mix_test.sh"],
+    data = [":flagd_ui_test_data"],
+    size = "enormous",
+    tags = [
+        "requires-network",
+        "unit",
+    ],
+)
+
+pkg_tar(
+    name = "flagd_ui_release_layer",
+    srcs = [":flagd_ui_publish"],
+    package_dir = "app",
+)
+
+oci_image(
+    name = "flagd_ui_image",
+    base = "@debian_bullseye_20251117_slim_linux_amd64//:debian_bullseye_20251117_slim_linux_amd64",
+    cmd = [],
+    # Mirrors src/flagd-ui/Dockerfile CMD (server sets PHX_SERVER=true).
+    entrypoint = ["/bin/sh", "-c", "ulimit -n 65536 2>/dev/null || true; exec /app/bin/server"],
+    env = {
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "MIX_ENV": "prod",
+    },
+    exposed_ports = ["4000/tcp"],
+    tars = [":flagd_ui_release_layer"],
+    workdir = "/app",
+)
+
+oci_load(
+    name = "flagd_ui_load",
+    image = ":flagd_ui_image",
+    repo_tags = ["otel/demo-flagd-ui:bazel"],
+)

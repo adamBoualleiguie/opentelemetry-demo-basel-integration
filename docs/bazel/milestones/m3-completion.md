@@ -23,6 +23,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 7. [Epic J — Rust (BZ-090)](#7-epic-j--rust-bz-090)  
    - [7.2 `src/currency` — C++ / gRPC (BZ-092)](#72-service-srccurrency--c--grpc-bz-092)  
    - [7.3 `src/email` — Ruby (BZ-093)](#73-service-srcemail--ruby-bz-093)  
+   - [7.4 `src/flagd-ui` — Elixir / Phoenix (BZ-094)](#74-service-srcflagd-ui--elixir--phoenix-bz-094)  
 8. [Epic F — Node: frontend (BZ-051)](#8-epic-f--node-frontend-bz-051)  
 9. [Epic M — OCI images (BZ-120, BZ-121)](#9-epic-m--oci-images-bz-120-bz-121)  
 10. [Epic N — Test taxonomy (BZ-130)](#10-epic-n--test-taxonomy-bz-130)  
@@ -66,10 +67,11 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | Rust `shipping` | M3 (BZ-090 + **BZ-121** OCI) | **`rules_rust` 0.69** + **`crate_universe`** **`shipping_crates`**; **`rust_library`** / **`rust_binary`** / **`rust_test`** (**`unit`**). **OCI:** **`shipping_image`** / **`shipping_load`** → **`otel/demo-shipping:bazel`** on **`gcr.io/distroless/cc-debian13:nonroot`** (**`distroless_cc_debian13_nonroot`** in **`MODULE.bazel`**); **`mtree_spec`** / **`tar`** layer places **`shipping`** at **`/app/shipping`** (same as **`src/shipping/Dockerfile`**). **Proto:** not in Bazel yet (**`docs/bazel/proto-policy.md`**). Repin: **`CARGO_BAZEL_REPIN=1 bazel sync --only=shipping_crates`**. |
 | C++ `currency` | M3 (**BZ-092** + **BZ-121** OCI) | **`grpc` 1.66.0.bcr.2** + **`opentelemetry-cpp` 1.24.0.bcr.1** + **`googletest`** in **`MODULE.bazel`**; **`single_version_override`** on **`protobuf`**, **`grpc`**, and **`abseil-cpp`** so C++ gRPC + protobuf 29.x stay consistent (avoids Bzlmod pulling protobuf 33 / grpc 1.69, which breaks the gRPC C++ / protobuf **upb** graph). **`//pb:demo_cpp_grpc`** (**`cc_proto_library`** + **`cc_grpc_library`**) for optional reuse; **`//src/currency`** copies **`//pb:demo.proto`** via **`genrule`** (protobuf requires same-package **`.proto`**), then **`cc_grpc_library`** (**`grpc_only`**) + **`cc_proto_library`**. **`currency_includes.bzl`** rule adds **`-I`** for **`bazel-bin/src/currency`** and **`bazel-bin/external/grpc~/src/proto`** so **`#include <demo.grpc.pb.h>`** and **`#include <grpc/health/v1/health.grpc.pb.h>`** resolve (gRPC health stubs from **`@com_github_grpc_grpc//src/proto/grpc/health/v1:health_proto`** — not **`@grpc-proto`**, because **`cc_grpc_library` cannot codegen from an external-repo path referenced only from `//pb`**). **`cc_library` `currency_lib`** uses **`features = ["-pic"]`** so gRPC stub code links as **`.a`** (avoids **`libcurrency_*_cc_grpc.so`** undefined **C core** symbols at link time). **`cc_binary` `currency`**; **`cc_test` `currency_proto_smoke_test`** (**`unit`**) links **`cc_proto`** only. **OCI:** **`currency_image`** / **`currency_load`** → **`otel/demo-currency:bazel`** on **`distroless_cc_debian13_nonroot`** (**`7001/tcp`**, **`cmd = ["7001"]`**, **`entrypoint = ["./currency"]`**). |
 | Ruby `email` | M3 (**BZ-093** + **BZ-121** OCI) | **`rules_ruby` 0.24** — portable MRI **3.4.8** (**`version_file = "//src/email:.ruby-version"`**), **`ruby.bundle_fetch`** **`email_bundle`** from **`Gemfile` / `Gemfile.lock`**. **`rb_library` / `rb_binary` `email`**; **`rb_test` `email_gems_smoke_test`** (**`unit`**). **`Gemfile.lock`** **`PLATFORMS`** limited to **`x86_64-linux`** + **`aarch64-linux`** (glibc) so **`bundle install`** under Bazel resolves **grpc** / native gems for Linux; **`google-protobuf`** uses **`force_ruby_platform: true`**. **OCI:** **`email_image`** / **`email_load`** → **`otel/demo-email:bazel`** on **`docker.io/library/ruby:3.4.8-slim-bookworm`** (**`ruby_348_slim_bookworm`** in **`MODULE.bazel`** — Debian **glibc**, distinct from Compose **Alpine** Dockerfile). |
+| Elixir `flagd-ui` | M3 (**BZ-094** + **BZ-121** OCI) | **`mix_release`** (**`//tools/bazel:mix_release.bzl`**) → **`//src/flagd-ui:flagd_ui_publish`** (host **`mix release`**, **`requires-network`**). **`sh_test` `flagd_ui_mix_test`** (**`mix test`**, **`unit`**, **`requires-network`**, **`size = "enormous"`**). **OCI:** **`flagd_ui_image`** / **`flagd_ui_load`** → **`otel/demo-flagd-ui:bazel`** on **`debian:bullseye-20251117-slim`** (**`debian_bullseye_20251117_slim`**). **CI:** **`erlef/setup-beam`** (**Elixir 1.19.3**, **OTP 28.0.2**) + **`build-essential`** / **`git`**. |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, and **Ruby `email`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**; **Ruby `email`** uses **official `ruby:3.4.8-slim-bookworm`** (glibc). |
-| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`**, **`//src/currency:currency_proto_smoke_test`**, **`//src/email:email_gems_smoke_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, **Ruby `email`**, and **Elixir `flagd-ui`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**; **Ruby `email`** uses **`ruby:3.4.8-slim-bookworm`**; **Elixir `flagd-ui`** uses **`debian:bullseye-slim`** + **`mix release`** tarball. |
+| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`**, **`//src/currency:currency_proto_smoke_test`**, **`//src/email:email_gems_smoke_test`**, **`//src/flagd-ui:flagd_ui_mix_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
 
@@ -457,6 +459,50 @@ bazel test //src/email:email_gems_smoke_test --config=unit
 
 ---
 
+### 7.4 Service: `src/flagd-ui` — Elixir / Phoenix (BZ-094)
+
+| Field | Detail |
+|-------|--------|
+| **Stack** | **Phoenix 1.8** / **LiveView**, **Bandit**, **Mix**; **esbuild** + **Tailwind** asset pipeline; **heroicons** via **git** dependency. |
+| **Build today** | **`src/flagd-ui/Dockerfile`**: **hexpm/elixir** builder (**1.19.3** / **OTP 28.0.2** / **Debian bullseye**), **`mix release`**, **Debian slim** runtime. |
+| **Proto** | UI service; no **`pb/demo.proto`** compile step in this app. |
+
+**Why a custom `mix_release` rule instead of BCR `rules_elixir`**
+
+- **`rules_elixir`** (Rabbitmq / BCR) focuses on **Erlang/Elixir sources** with **`rules_erlang`**-style graphs; it does **not** replace **Mix** for a full **Phoenix** + **Hex** + **git deps** + **assets.deploy** pipeline.
+- This fork follows the same pattern as **.NET** **`dotnet_publish`**: a **`run_shell`** rule copies declared sources into a **temp tree**, runs **`mix`** with **`MIX_ENV=prod`**, and emits a **`declare_directory`** output — **`//src/flagd-ui:flagd_ui_publish`**.
+- **Trade-offs:** requires **host** **`mix`** (versions aligned with **`Dockerfile`**), **`gcc`** / **`build-essential`** for native deps, **`git`** for **heroicons**, and **network** (**`tags = ["requires-network"]`** on **`flagd_ui_publish`**). First builds can take **several minutes** (Hex fetch + compilation).
+
+**Tests**
+
+- **`//src/flagd-ui:flagd_ui_mix_test`** is an **`sh_test`** that **`cd`**s into runfiles-resolved **`src/flagd-ui`**, runs **`mix deps.get`** and **`mix test`**, **`tags = ["unit", "requires-network"]`**, **`size = "enormous"`** (long timeout). It **re-fetches** Mix deps independently of **`flagd_ui_publish`** (no shared **`_build`** between the two actions).
+
+**OCI**
+
+- **`pkg_tar`** **`flagd_ui_release_layer`** packs **`flagd_ui_publish`** under **`/app`**.
+- **`oci_image`** **`flagd_ui_image`** uses **`debian_bullseye_20251117_slim_linux_amd64`** (digest-pinned index **`sha256:530a3348fc4b5734ffe1a137ddbcee6850154285251b53c3425c386ea8fac77b`** — same tag as **`Dockerfile`** **`RUNNER_IMAGE`**).
+- **Caveat:** the **Dockerfile** **`apt-get`** layer adds **`ca-certificates`** and **`locales`**; **slim** may omit **`ca-certificates`** — see **`docs/bazel/oci-policy.md`** (**Elixir (`flagd-ui`)**). **Runtime** still needs **`SECRET_KEY_BASE`**, **`OTEL_EXPORTER_OTLP_ENDPOINT`**, etc. (**`config/runtime.exs`**).
+
+**What we implemented**
+
+1. **`MODULE.bazel`** — **`oci.pull`** **`debian_bullseye_20251117_slim`** + **`use_repo`** entries.  
+2. **`tools/bazel/mix_release.bzl`** — **`mix_release`** rule.  
+3. **`src/flagd-ui/BUILD.bazel`** — **`filegroup`** sources; **`mix_release` `flagd_ui_publish`**; **`sh_test` `flagd_ui_mix_test`** (**`run_mix_test.sh`**); **`pkg_tar`**; **`oci_image` / `oci_load`**.  
+4. **`.github/workflows/checks.yml`** — **`erlef/setup-beam`** (**1.19.3** / **28.0.2**), **`apt`** **`build-essential`** **`git`**, **`bazel build`** / **`bazel test`** for **`//src/flagd-ui/...`**.
+
+**Verification**
+
+```bash
+bazel build //src/flagd-ui:flagd_ui_publish //src/flagd-ui:flagd_ui_image --config=ci
+bazel test //src/flagd-ui:flagd_ui_mix_test --config=ci
+bazel test //src/flagd-ui:flagd_ui_mix_test --config=unit
+# optional: bazel run //src/flagd-ui:flagd_ui_load && docker image ls | grep otel/demo-flagd-ui
+```
+
+**Status in this repository:** **Implemented** (**B** / **T** / **I**). **`mix phx.server`** / **`docker build -f src/flagd-ui/Dockerfile .`** remain alternate entrypoints.
+
+---
+
 ## 8. Epic F — Node: frontend (BZ-051)
 
 ### 8.1 Service: `src/frontend`
@@ -520,7 +566,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**), **C++ `currency`** (**`cc_binary`** + **distroless cc** — **§9.10**), and **Ruby `email`** (**`rules_ruby`** **`bundle_fetch`** + **`ruby:3.4.8-slim-bookworm`** — **§9.11** / **`oci-policy.md`**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**), **C++ `currency`** (**`cc_binary`** + **distroless cc** — **§9.10**), **Ruby `email`** (**`rules_ruby`** **`bundle_fetch`** + **`ruby:3.4.8-slim-bookworm`** — **§9.11**), and **Elixir `flagd-ui`** (**`mix_release`** + **`debian:bullseye-slim`** — **§9.12** / **`oci-policy.md`**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -529,7 +575,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 **Module wiring (`MODULE.bazel`):**
 
 - **`bazel_dep`:** `rules_oci` 2.3.0, `aspect_bazel_lib` 2.21.1, `tar.bzl` 0.7.0, **`rules_pkg`** 1.0.1 (Python service **`pkg_tar`** layers).
-- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_cc_debian13_nonroot`** (Rust **shipping**), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), **`ruby_348_slim_bookworm`** (Ruby **email**), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
+- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_cc_debian13_nonroot`** (Rust **shipping**), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), **`ruby_348_slim_bookworm`** (Ruby **email**), **`debian_bullseye_20251117_slim`** (Elixir **flagd-ui** runtime), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
 - **Why there is no `oci.toolchains()` in the root module:** the **`rules_oci` module’s own `MODULE.bazel` already calls `oci.toolchains()`**. Bzlmod merges extension tags; a second `oci.toolchains()` from the root duplicated crane repositories and broke analysis. The root module still **`use_repo`**-exports **`oci_crane_toolchains`** and **`oci_regctl_toolchains`** and **`register_toolchains(...)`** for them so crane/regctl are visible from this repo.
 - **Supporting toolchains:** `aspect_bazel_lib` **`jq`** + **`zstd`**; **`tar.bzl`** **`bsd_tar_toolchains`** — required by **`rules_oci`** / aspect tar rules.
 
@@ -746,6 +792,25 @@ bazel build //src/email:email_image //src/email:email_load --config=ci
 - **Base image** is **Debian slim** (glibc), not **Alpine** — see **§7.3**.  
 - **`bazel_smoke`** builds **`email_image`** (not **`email_load`**) like other OCI targets.
 
+### 9.12 BZ-121 — Extension: Elixir **`flagd-ui`**
+
+**What we added**
+
+1. **`MODULE.bazel`** — **`oci.pull`** **`debian_bullseye_20251117_slim`** (index digest **`sha256:530a3348fc4b5734ffe1a137ddbcee6850154285251b53c3425c386ea8fac77b`**).  
+2. **`src/flagd-ui/BUILD.bazel`** — **`pkg_tar`** **`flagd_ui_release_layer`**; **`oci_image`** **`flagd_ui_image`** (**`entrypoint`** mirrors **`Dockerfile`** **`CMD`** via **`/app/bin/server`**); **`oci_load`** **`flagd_ui_load`** → **`otel/demo-flagd-ui:bazel`**; **`4000/tcp`**.
+
+**Verification**
+
+```bash
+bazel build //src/flagd-ui:flagd_ui_image //src/flagd-ui:flagd_ui_load --config=ci
+# optional: bazel run //src/flagd-ui:flagd_ui_load && docker run --rm -e SECRET_KEY_BASE="$(mix phx.gen.secret)" -e OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4317 -e FLAGD_UI_PORT=4000 -p 4000:4000 otel/demo-flagd-ui:bazel
+```
+
+**Caveats**
+
+- **`bazel_smoke`** builds **`flagd_ui_publish`** and **`flagd_ui_image`**; **`mix test`** is a separate **`sh_test`** (duplicate Mix fetch).  
+- **§7.4** / **`oci-policy.md`**: **ca-certificates** / **locale** parity vs **`Dockerfile`**.
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -770,7 +835,7 @@ bazel build //src/email:email_image //src/email:email_load --config=ci
 | `slow` | Large timeouts. |
 | `manual` | Not run in CI unless explicitly selected. |
 
-**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet). **`//src/email:email_gems_smoke_test`** is tagged **`unit`** (**BZ-093** — Bundler + gem load smoke).
+**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, **`sh_test`** (or other runners), or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet). **`//src/email:email_gems_smoke_test`** is tagged **`unit`** (**BZ-093** — Bundler + gem load smoke). **`//src/flagd-ui:flagd_ui_mix_test`** is tagged **`unit`** (**BZ-094** — **`mix test`**, **`requires-network`**).
 
 ---
 
@@ -786,6 +851,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 6. **BZ-090 / BZ-121** — Rust **`shipping`** (build, test, **`shipping_image`**) — **done** in this fork (§7, §9.8).  
 6b. **BZ-092 / BZ-121** — C++ **`currency`** (build, **`cc_test`**, **`currency_image`**) — **done** in this fork (§7.2, §9.10).  
 6c. **BZ-093 / BZ-121** — Ruby **`email`** (**`rules_ruby`**, **`rb_test`**, **`email_image`**) — **done** in this fork (§7.3, §9.11).  
+6d. **BZ-094 / BZ-121** — Elixir **`flagd-ui`** (**`mix_release`**, **`sh_test`**, **`flagd_ui_image`**) — **done** in this fork (§7.4, §9.12).  
 7. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
 
 ---
@@ -806,12 +872,14 @@ bazel build //src/recommendation:recommendation_image //src/product-reviews:prod
 bazel build //src/shipping:shipping //src/shipping:shipping_image --config=ci   # BZ-090 + BZ-121 OCI
 bazel build //src/currency:currency //src/currency:currency_image --config=ci   # BZ-092 + BZ-121 OCI
 bazel build //src/email:email //src/email:email_image --config=ci   # BZ-093 + BZ-121 OCI
+bazel build //src/flagd-ui:flagd_ui_publish //src/flagd-ui:flagd_ui_image --config=ci   # BZ-094 + BZ-121 OCI (host mix)
 bazel test  //src/checkout/... //src/product-catalog/... --config=ci
 bazel test  //src/shipping/... --config=ci      # BZ-090 (rust_test)
 bazel test  //src/currency:currency_proto_smoke_test --config=ci   # BZ-092 (cc_test, unit)
 bazel test  //src/email:email_gems_smoke_test --config=ci   # BZ-093 (rb_test, unit)
+bazel test  //src/flagd-ui:flagd_ui_mix_test --config=ci   # BZ-094 (sh_test / mix test, unit)
 bazel test  //src/frontend:lint --config=ci   # BZ-051 (Next ESLint)
-bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test --config=unit
+bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test --config=unit
 bazel test  //... --config=unit   # all tests tagged `unit` (see docs/bazel/test-tags.md)
 bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 (checkout)
 bazel build //src/payment:payment_image //src/payment:payment_load --config=ci       # BZ-121 (payment)

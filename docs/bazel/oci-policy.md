@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** + **C++ `currency`** + **Ruby `email`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet** for **`accounting`** + **`cart`**), Rust (**`rust_binary`** + **distroless `cc`**), C++ (**distroless `cc`**), and Ruby (**official `ruby:3.4.8-slim-bookworm`** + **`rules_pkg`** **`pkg_tar`** layers): digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** + **C++ `currency`** + **Ruby `email`** + **Elixir `flagd-ui`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet**), Rust (**`rust_binary`** + **distroless `cc`**), C++ (**distroless `cc`**), Ruby (**`ruby:3.4.8-slim-bookworm`**), and Elixir (**`mix release`** artifact + **`debian:bullseye-slim`**): digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -99,6 +99,17 @@ This note records the **chosen direction** for building container images with Ba
 | **Layers** | **`rules_pkg`** **`pkg_tar`**: **`email_bundle_layer`** (output of **`@email_bundle//:email_bundle`** — **`Gemfile`**, **`Gemfile.lock`**, **`vendor/bundle`**, binstubs) + **`email_app_layer`** (**`email_server.rb`**, **`views/`**, etc.) under **`/email_server`**. |
 | **Runtime** | **`ENTRYPOINT`** **`bundle exec ruby email_server.rb`**, **`WORKDIR`** **`/email_server`**, **`6060/tcp`** (demo **`EMAIL_PORT`**). |
 | **Caveat** | **`src/email/Dockerfile`** uses **Alpine** + **`bundle install`**; the Bazel image uses **Debian slim** by design (see **`docs/bazel/milestones/m3-completion.md`** §7.3). **`Gemfile.lock`** **`PLATFORMS`** are **`x86_64-linux`** / **`aarch64-linux`** for Bazel **`bundle install`**; Compose **Dockerfile** still works (**`docker build -f src/email/Dockerfile .`**). |
+
+### Elixir (`flagd-ui`)
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | **`//src/flagd-ui:flagd_ui_image`**, **`//src/flagd-ui:flagd_ui_load`** → **`otel/demo-flagd-ui:bazel`**. |
+| **Build** | **`//src/flagd-ui:flagd_ui_publish`** — custom **`mix_release`** rule (**`//tools/bazel:mix_release.bzl`**) runs host **`mix release`** (same steps as **`src/flagd-ui/Dockerfile`** builder: **`deps.get`**, **`deps.compile`**, **`assets.setup`**, **`assets.deploy`**, **`compile`**, **`release`**). |
+| **Base** | **`docker.io/library/debian`** **`bullseye-20251117-slim`** (multi-arch index digest **`sha256:530a3348fc4b5734ffe1a137ddbcee6850154285251b53c3425c386ea8fac77b`** in **`MODULE.bazel`** as **`debian_bullseye_20251117_slim`**). Aligns with the **final** stage of **`src/flagd-ui/Dockerfile`**. |
+| **Layers** | **`rules_pkg`** **`pkg_tar`** **`flagd_ui_release_layer`** — contents of **`mix release`** under **`/app`** ( **`bin/server`**, embedded **ERTS**, etc.). |
+| **Runtime** | **`ENTRYPOINT`** **`/bin/sh -c 'ulimit …; exec /app/bin/server'`**, **`WORKDIR`** **`/app`**, **`4000/tcp`** (demo **`FLAGD_UI_PORT`**). **`PHX_SERVER`** is set by **`rel/overlays/bin/server`**. |
+| **Caveat** | The stock **Dockerfile** runs **`apt-get install`** for **`libstdc++6`**, **`openssl`**, **`libncurses5`**, **`locales`**, **`ca-certificates`**. **Official `debian:bullseye-slim`** already includes **`libssl1.1`**; it does **not** install **`ca-certificates`** by default — OTLP over **HTTPS** from the container may need an extra layer or use **`src/flagd-ui/Dockerfile`** for full parity. **Prod** still requires **`SECRET_KEY_BASE`**, **`OTEL_EXPORTER_OTLP_ENDPOINT`**, etc. (**`config/runtime.exs`**). |
 
 ## Out of scope at BZ-120
 

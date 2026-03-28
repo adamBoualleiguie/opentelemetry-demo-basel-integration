@@ -12,7 +12,7 @@ Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = 
 | `src/checkout` | Go | Dockerfile / `go` | Yes | `//pb:demo_go_proto_checkout` | B/T/I |
 | `src/currency` | C++ | Dockerfile / cmake | Yes | `//pb:demo.proto` → genrule copy + `proto_library` in `//src/currency` (**BZ-092**); optional **`//pb:demo_cpp_grpc`** for other C++ consumers | B/T/I |
 | `src/email` | Ruby | Dockerfile / bundler | Yes | — | B/T/I |
-| `src/flagd-ui` | Elixir | Dockerfile / mix | Yes | — | NS |
+| `src/flagd-ui` | Elixir | Dockerfile / mix | Yes | — | B/T/I |
 | `src/fraud-detection` | Kotlin | Gradle / Dockerfile | Yes | `//pb:demo_java_grpc` | B/I |
 | `src/frontend` | TS/Next | Dockerfile / npm | Yes | — | B/T/I |
 | `src/frontend-proxy` | Envoy | Dockerfile | No | — | NS |
@@ -35,6 +35,6 @@ Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = 
 
 Infra/config under `src/` (grafana, jaeger, prometheus, postgresql, otel-collector, flagd) are not listed above; track separately when image rules are introduced.
 
-**M3 (majority services + images):** see **`docs/bazel/milestones/m3-completion.md`** and **`docs/bazel/oci-policy.md`** (BZ-120). **BZ-121:** **`checkout`**, **`payment`**, **`frontend`**, Python **`recommendation`**, **`product-reviews`**, **`llm`**, **`load-generator`**, JVM **`ad`**, **`fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, and **Ruby `email`** each have **`oci_image`** (+ **`oci_load`** where defined); **`next_build`** / some frontend prep remain **`manual`** where tagged.
+**M3 (majority services + images):** see **`docs/bazel/milestones/m3-completion.md`** and **`docs/bazel/oci-policy.md`** (BZ-120). **BZ-121:** **`checkout`**, **`payment`**, **`frontend`**, Python **`recommendation`**, **`product-reviews`**, **`llm`**, **`load-generator`**, JVM **`ad`**, **`fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, **Ruby `email`**, and **Elixir `flagd-ui`** each have **`oci_image`** (+ **`oci_load`** where defined); **`next_build`** / some frontend prep remain **`manual`** where tagged.
 
-**BZ-130 (test tags):** **`docs/bazel/test-tags.md`**; **`bazel test //... --config=unit`** runs only tests tagged **`unit`** (**`//src/checkout/money:money_test`**, **`//src/shipping:shipping_test`**). **`cart`** **`dotnet test`** is not wired as **`bazel test`** yet (**BZ-081**).
+**BZ-130 (test tags):** **`docs/bazel/test-tags.md`**; **`bazel test //... --config=unit`** runs only tests tagged **`unit`** (**`//src/checkout/money:money_test`**, **`//src/shipping:shipping_test`**, **`//src/flagd-ui:flagd_ui_mix_test`**, …). **`cart`** **`dotnet test`** is not wired as **`bazel test`** yet (**BZ-081**).

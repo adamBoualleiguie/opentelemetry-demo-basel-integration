@@ -293,6 +293,18 @@ oci.pull(
     ],
 )
 
+# BZ-094 flagd-ui (Elixir release): matches src/flagd-ui/Dockerfile final stage (debian:bullseye-20251117-slim).
+# Index digest: docker buildx imagetools inspect debian:bullseye-20251117-slim
+oci.pull(
+    name = "debian_bullseye_20251117_slim",
+    digest = "sha256:530a3348fc4b5734ffe1a137ddbcee6850154285251b53c3425c386ea8fac77b",
+    image = "docker.io/library/debian",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
+
 # JVM services (BZ-121): gcr.io/distroless/java{17,21}-debian12:nonroot — index digests (amd64 + arm64).
 oci.pull(
     name = "distroless_java21_debian12_nonroot",
@@ -326,6 +338,9 @@ oci.pull(
 )
 use_repo(
     oci,
+    "debian_bullseye_20251117_slim",
+    "debian_bullseye_20251117_slim_linux_amd64",
+    "debian_bullseye_20251117_slim_linux_arm64",
     "distroless_cc_debian13_nonroot",
     "distroless_cc_debian13_nonroot_linux_amd64",
     "distroless_cc_debian13_nonroot_linux_arm64",
@@ -353,7 +368,7 @@ use_repo(
     "ruby_348_slim_bookworm",
     "ruby_348_slim_bookworm_linux_amd64",
     "ruby_348_slim_bookworm_linux_arm64",
-    # rules_oci crane/regctl repos (indirect but required for register_toolchains below).
+    # Indirect repos required by register_toolchains below; keep even if mod tidy drops them.
     "oci_crane_toolchains",
     "oci_regctl_toolchains",
 )
