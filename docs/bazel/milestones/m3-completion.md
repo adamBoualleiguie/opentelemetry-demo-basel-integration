@@ -21,6 +21,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 6. [Epic I — .NET (BZ-080)](#6-epic-i--net-bz-080)  
    - [6.2 `src/cart` (BZ-081)](#62-service-srccart-bz-081)  
 7. [Epic J — Rust (BZ-090)](#7-epic-j--rust-bz-090)  
+   - [7.2 `src/currency` — C++ / gRPC (BZ-092)](#72-service-srccurrency--c--grpc-bz-092)  
 8. [Epic F — Node: frontend (BZ-051)](#8-epic-f--node-frontend-bz-051)  
 9. [Epic M — OCI images (BZ-120, BZ-121)](#9-epic-m--oci-images-bz-120-bz-121)  
 10. [Epic N — Test taxonomy (BZ-130)](#10-epic-n--test-taxonomy-bz-130)  
@@ -62,9 +63,10 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | .NET `accounting` | M3 (BZ-080 + BZ-121 OCI) | **`dotnet_publish`** → **`//src/accounting:accounting_publish`**; **`pkg_tar`** + **`oci_image`** **`accounting_image`** / **`oci_load`** (**`otel/demo-accounting:bazel`**) on **`dotnet_aspnet_10`**. Host **.NET 10**; **`requires-network`**. |
 | .NET `cart` | BZ-081 (build/OCI early) + **BZ-121** | **`//src/cart:cart_publish`**, **`cart_image`** / **`cart_load`** (**`otel/demo-cart:bazel`**). **gRPC Web** + **Valkey**; proto at **`pb/demo.proto`** in the temp tree (**`proto_dest`**). Publish overrides **`PublishSingleFile`** / **`SelfContained`** so the image runs **`dotnet cart.dll`** on **aspnet** (Dockerfile uses **single-file musl** — intentional Bazel divergence, **§6.2**). **`bazel test`** for **`tests/cart.tests.csproj`** not wired yet — run **`dotnet test`** locally (**BZ-081** remainder). |
 | Rust `shipping` | M3 (BZ-090 + **BZ-121** OCI) | **`rules_rust` 0.69** + **`crate_universe`** **`shipping_crates`**; **`rust_library`** / **`rust_binary`** / **`rust_test`** (**`unit`**). **OCI:** **`shipping_image`** / **`shipping_load`** → **`otel/demo-shipping:bazel`** on **`gcr.io/distroless/cc-debian13:nonroot`** (**`distroless_cc_debian13_nonroot`** in **`MODULE.bazel`**); **`mtree_spec`** / **`tar`** layer places **`shipping`** at **`/app/shipping`** (same as **`src/shipping/Dockerfile`**). **Proto:** not in Bazel yet (**`docs/bazel/proto-policy.md`**). Repin: **`CARGO_BAZEL_REPIN=1 bazel sync --only=shipping_crates`**. |
+| C++ `currency` | M3 (**BZ-092** + **BZ-121** OCI) | **`grpc` 1.66.0.bcr.2** + **`opentelemetry-cpp` 1.24.0.bcr.1** + **`googletest`** in **`MODULE.bazel`**; **`single_version_override`** on **`protobuf`**, **`grpc`**, and **`abseil-cpp`** so C++ gRPC + protobuf 29.x stay consistent (avoids Bzlmod pulling protobuf 33 / grpc 1.69, which breaks the gRPC C++ / protobuf **upb** graph). **`//pb:demo_cpp_grpc`** (**`cc_proto_library`** + **`cc_grpc_library`**) for optional reuse; **`//src/currency`** copies **`//pb:demo.proto`** via **`genrule`** (protobuf requires same-package **`.proto`**), then **`cc_grpc_library`** (**`grpc_only`**) + **`cc_proto_library`**. **`currency_includes.bzl`** rule adds **`-I`** for **`bazel-bin/src/currency`** and **`bazel-bin/external/grpc~/src/proto`** so **`#include <demo.grpc.pb.h>`** and **`#include <grpc/health/v1/health.grpc.pb.h>`** resolve (gRPC health stubs from **`@com_github_grpc_grpc//src/proto/grpc/health/v1:health_proto`** — not **`@grpc-proto`**, because **`cc_grpc_library` cannot codegen from an external-repo path referenced only from `//pb`**). **`cc_library` `currency_lib`** uses **`features = ["-pic"]`** so gRPC stub code links as **`.a`** (avoids **`libcurrency_*_cc_grpc.so`** undefined **C core** symbols at link time). **`cc_binary` `currency`**; **`cc_test` `currency_proto_smoke_test`** (**`unit`**) links **`cc_proto`** only. **OCI:** **`currency_image`** / **`currency_load`** → **`otel/demo-currency:bazel`** on **`distroless_cc_debian13_nonroot`** (**`7001/tcp`**, **`cmd = ["7001"]`**, **`entrypoint = ["./currency"]`**). |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, and **Rust `shipping`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** uses **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**. |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, and **C++ `currency`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**. |
 | Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
@@ -384,6 +386,37 @@ bazel test //src/shipping:shipping_test --config=unit
 
 ---
 
+### 7.2 Service: `src/currency` — C++ / gRPC (BZ-092)
+
+| Field | Detail |
+|-------|--------|
+| **Stack** | **C++17**, **gRPC** + **Protobuf**, **opentelemetry-cpp** OTLP gRPC exporters (trace, metrics, logs) via **`tracer_common.h`**, **`meter_common.h`**, **`logger_common.h`**. |
+| **Build today** | Docker **Alpine** + **CMake** (see **`src/currency/Dockerfile`**); committed **`build/generated/proto`** is **not** the Bazel source of truth. |
+| **Proto (BZ-035 / `proto-policy.md`)** | Canonical file remains **`pb/demo.proto`**. **`proto_library`** in **`//src/currency`** must see **`.proto` files in the same package**, so a **`genrule`** copies **`//pb:demo.proto`** → **`demo.proto`** under the package. Optional **`//pb:demo_cpp_grpc`** builds the same API for other C++ packages (consumers outside **`//src/currency`** would need their own include strategy or local codegen). |
+| **Health** | **`#include <grpc/health/v1/health.grpc.pb.h>`** matches stubs from **`@com_github_grpc_grpc//src/proto/grpc/health/v1:health_proto`** (same wire API as **`@grpc-proto//:health_proto`** used by Java). |
+| **Backlog** | **BZ-035** (C++ proto in Bazel) — satisfied for **`currency`** in this fork via **BZ-092**. |
+
+**What we implemented**
+
+1. **`MODULE.bazel`** — **`bazel_dep(grpc, 1.66.0.bcr.2, repo_name = com_github_grpc_grpc)`**, **`bazel_dep(opentelemetry-cpp, 1.24.0.bcr.1)`**, **`bazel_dep(googletest, 1.14.0.bcr.1, repo_name = com_google_googletest)`**. **`single_version_override`** for **`protobuf` 29.3**, **`grpc` 1.66.0.bcr.2**, **`abseil-cpp` 20240116.1** so the resolved graph does not upgrade to **protobuf 33** / **grpc 1.69** (that combination breaks gRPC C++’s expected **protobuf / upb** targets). Bzlmod may still warn that **`rules_java`**, **`rules_python`**, or **`googletest`** resolved to newer versions than the root pins; builds were validated with the current lockfile.  
+2. **`pb/BUILD.bazel`** — **`demo_cc_proto`**, **`demo_cc_grpc`** (**`grpc_only = True`**), **`demo_cpp_grpc`** wrapper **`cc_library`** for optional **`//pb:demo_cpp_grpc`** consumers.  
+3. **`src/currency/currency_includes.bzl`** + **`currency_grpc_gen_includes`** — small rule providing **`CcInfo`** with extra **`includes`** (**`-I`**) for **`$(bin_dir)/src/currency`** and **`$(bin_dir)/external/grpc~/src/proto`**, because native **`cc_proto_library` / `cc_grpc_library`** + **`#include <…>`** did not receive the right include roots on this graph without it. The **`grpc~`** segment follows BCR’s external repository naming; if Bazel changes it, adjust **`currency_includes.bzl`**.  
+4. **`src/currency/BUILD.bazel`** — **`genrule`** **`currency_demo_proto_copy`**; **`proto_library`** **`currency_demo_proto`**; **`cc_proto_library`** / **`cc_grpc_library`** (**`grpc_only`**); **`cc_library` `currency_lib`** (**`features = ["-pic"]`**, **`src/**/*.cpp`/`*.h`**, OTel + **`grpc`** + **`grpc++`** + health **`health_proto`**); **`cc_binary` `currency`**; **`cc_test` `currency_proto_smoke_test`** (**`tags = ["unit"]`**, **`cc_proto`** only — no gRPC **`.so`** link); **`mtree_spec`** / **`oci_image` `currency_image`** / **`oci_load` `currency_load`** (**`otel/demo-currency:bazel`**).  
+5. **OCI** — Same pattern as **`shipping`**: **glibc-linked** binary → **`distroless_cc_debian13_nonroot`**, **`7001/tcp`** aligned with **`.env` `CURRENCY_PORT`**.
+
+**Verification**
+
+```bash
+bazel build //src/currency:currency //src/currency:currency_image --config=ci
+bazel test //src/currency:currency_proto_smoke_test --config=ci
+bazel test //src/currency:currency_proto_smoke_test --config=unit
+# optional: bazel run //src/currency:currency_load && docker image ls | grep otel/demo-currency
+```
+
+**Status in this repository:** **Implemented** (**B** / **T** / **I**). CMake/Docker remain alternate entrypoints.
+
+---
+
 ## 8. Epic F — Node: frontend (BZ-051)
 
 ### 8.1 Service: `src/frontend`
@@ -447,7 +480,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), and **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**), and **C++ `currency`** (**`cc_binary`** + **distroless cc** — **§9.10**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -634,6 +667,26 @@ bazel build //src/cart:cart_image //src/cart:cart_load --config=ci
 - **Not** a byte-for-byte match to **`src/cart/src/Dockerfile`** (musl single-file vs **FDD** on **aspnet**).  
 - **`bazel_smoke`** builds **`cart_image`**; **`dotnet test`** for **`tests/cart.tests.csproj`** is still **out-of-Bazel** (**BZ-081**).
 
+### 9.10 BZ-121 — Extension: C++ **`currency`**
+
+**What we added**
+
+1. **`src/currency/BUILD.bazel`** — **`aspect_bazel_lib`** **`mtree_spec`** / **`mtree_mutate`** (**`package_dir = "app"`**) / **`tar`** over **`//src/currency:currency`**; **`oci_image`** **`currency_image`** with **`base`** = **`@distroless_cc_debian13_nonroot_linux_amd64//:...`**, **`entrypoint`** **`["./currency"]`**, **`cmd`** **`["7001"]`** (default port; override at **`docker run`**), **`workdir`** **`/app`**, **`exposed_ports`** **`["7001/tcp"]`**. **`oci_load`** **`currency_load`** → **`otel/demo-currency:bazel`**.  
+2. **Runtime** — Binary is **dynamically linked** (**gRPC**, **opentelemetry-cpp**, **protobuf**); **distroless cc** matches the **glibc** expectation (same class as **Rust `shipping`**).  
+3. **Stock Dockerfile** used **`ENTRYPOINT ["sh", "-c", "./usr/local/bin/currency ${CURRENCY_PORT}"]`**; the Bazel image has **no shell** — pass the port as **container args** (e.g. **`docker run … otel/demo-currency:bazel 7001`**) or set **`cmd`** when rebaking the image.
+
+**Verification**
+
+```bash
+bazel build //src/currency:currency_image //src/currency:currency_load --config=ci
+# optional: bazel run //src/currency:currency_load && docker run --rm -p 7001:7001 otel/demo-currency:bazel 7001
+```
+
+**Caveats**
+
+- **`bazel_smoke`** builds **`currency_image`** (not **`currency_load`**) like other **`*_image`** targets.  
+- **`currency_includes.bzl`** hard-codes the **`grpc~`** external folder name for **`health`** includes; if resolution changes, update that rule.
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -658,7 +711,7 @@ bazel build //src/cart:cart_image //src/cart:cart_load --config=ci
 | `slow` | Large timeouts. |
 | `manual` | Not run in CI unless explicitly selected. |
 
-**Ongoing:** When adding **`py_test`**, **`rust_test`**, or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**).
+**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet).
 
 ---
 
@@ -672,6 +725,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 4. **BZ-070 / BZ-071** — JVM (shared Maven pin helps both).  
 5. **BZ-080 / BZ-121** — .NET **`accounting`** + **`cart`** (**`accounting_*`**, **`cart_publish`** / **`cart_image`**) — **done** in this fork (§6, §6.2, §9.7, §9.9).  
 6. **BZ-090 / BZ-121** — Rust **`shipping`** (build, test, **`shipping_image`**) — **done** in this fork (§7, §9.8).  
+6b. **BZ-092 / BZ-121** — C++ **`currency`** (build, **`cc_test`**, **`currency_image`**) — **done** in this fork (§7.2, §9.10).  
 7. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
 
 ---
@@ -681,7 +735,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 **Already available (M2 + M1):**
 
 ```bash
-bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc //pb:demo_java_grpc --config=ci
+bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc //pb:demo_java_grpc //pb:demo_cpp_grpc --config=ci
 bazel build //src/ad:ad //src/fraud-detection:fraud_detection --config=ci
 bazel build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
 bazel build //src/accounting:accounting_publish //src/accounting:accounting_image --config=ci
@@ -690,10 +744,12 @@ bazel build //src/checkout/... //src/product-catalog/... //src/payment:payment -
 bazel build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci
 bazel build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image //src/llm:llm_image //src/load-generator:load_generator_image --config=ci
 bazel build //src/shipping:shipping //src/shipping:shipping_image --config=ci   # BZ-090 + BZ-121 OCI
+bazel build //src/currency:currency //src/currency:currency_image --config=ci   # BZ-092 + BZ-121 OCI
 bazel test  //src/checkout/... //src/product-catalog/... --config=ci
 bazel test  //src/shipping/... --config=ci      # BZ-090 (rust_test)
+bazel test  //src/currency:currency_proto_smoke_test --config=ci   # BZ-092 (cc_test, unit)
 bazel test  //src/frontend:lint --config=ci   # BZ-051 (Next ESLint)
-bazel test  //src/checkout/money:money_test //src/shipping:shipping_test --config=unit
+bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test --config=unit
 bazel test  //... --config=unit   # all tests tagged `unit` (see docs/bazel/test-tags.md)
 bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 (checkout)
 bazel build //src/payment:payment_image //src/payment:payment_load --config=ci       # BZ-121 (payment)

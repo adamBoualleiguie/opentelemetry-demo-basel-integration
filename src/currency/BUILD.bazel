@@ -1,0 +1,125 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-092: C++ gRPC service — Bazel build + gtest smoke + OCI (distroless cc, same class as Rust shipping).
+
+load("@aspect_bazel_lib//lib:tar.bzl", "mtree_mutate", "mtree_spec", "tar")
+load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("//src/currency:currency_includes.bzl", "currency_grpc_gen_includes")
+
+package(default_visibility = ["//visibility:public"])
+
+# Codegen in this package (`proto_library` must see `.proto` in-package — copy canonical `pb/demo.proto`).
+# Service sources compile in `cc_library` (not `cc_binary`) so `cc_proto_library` / `cc_grpc_library`
+# generated include dirs propagate per rules_cc; a thin `cc_binary` links `:currency_lib` only.
+genrule(
+    name = "currency_demo_proto_copy",
+    srcs = ["//pb:demo.proto"],
+    outs = ["demo.proto"],
+    cmd = "cp $(location //pb:demo.proto) $@",
+)
+
+proto_library(
+    name = "currency_demo_proto",
+    srcs = [":currency_demo_proto_copy"],
+)
+
+currency_grpc_gen_includes(name = "currency_grpc_gen_includes")
+
+cc_proto_library(
+    name = "currency_demo_cc_proto",
+    deps = [":currency_demo_proto"],
+)
+
+cc_grpc_library(
+    name = "currency_demo_cc_grpc",
+    srcs = [":currency_demo_proto"],
+    grpc_only = True,
+    deps = [":currency_demo_cc_proto"],
+)
+
+_CURRENCY_OTEL_DEPS = [
+    "@com_github_grpc_grpc//:grpc",
+    "@com_github_grpc_grpc//:grpc++",
+    "@opentelemetry-cpp//api:api",
+    "@opentelemetry-cpp//exporters/ostream:ostream_span_exporter",
+    "@opentelemetry-cpp//exporters/otlp:otlp_grpc_exporter",
+    "@opentelemetry-cpp//exporters/otlp:otlp_grpc_log_record_exporter",
+    "@opentelemetry-cpp//exporters/otlp:otlp_grpc_metric_exporter",
+    "@opentelemetry-cpp//sdk/src/logs:logs",
+    "@opentelemetry-cpp//sdk/src/metrics:metrics",
+    "@opentelemetry-cpp//sdk/src/trace:trace",
+]
+
+cc_library(
+    name = "currency_lib",
+    features = ["-pic"],
+    srcs = glob(
+        ["src/**/*.cpp"],
+        exclude = ["src/currency_proto_smoke_test.cpp"],
+    ) + glob(["src/**/*.h"]),
+    includes = ["src"],
+    deps = [
+        ":currency_grpc_gen_includes",
+        ":currency_demo_cc_proto",
+        ":currency_demo_cc_grpc",
+        "@com_github_grpc_grpc//src/proto/grpc/health/v1:health_proto",
+    ] + _CURRENCY_OTEL_DEPS,
+)
+
+cc_binary(
+    name = "currency",
+    deps = [":currency_lib"],
+)
+
+cc_test(
+    name = "currency_proto_smoke_test",
+    size = "small",
+    srcs = ["src/currency_proto_smoke_test.cpp"],
+    tags = ["unit"],
+    deps = [
+        ":currency_grpc_gen_includes",
+        ":currency_demo_cc_proto",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+mtree_spec(
+    name = "currency_mtree_raw",
+    srcs = [":currency"],
+    out = "currency_mtree_raw.spec",
+)
+
+mtree_mutate(
+    name = "currency_mtree",
+    mtree = ":currency_mtree_raw",
+    package_dir = "app",
+    srcs = [":currency"],
+)
+
+tar(
+    name = "currency_layer",
+    srcs = [":currency"],
+    mtree = ":currency_mtree",
+    out = "currency_layer.tar",
+)
+
+oci_image(
+    name = "currency_image",
+    base = "@distroless_cc_debian13_nonroot_linux_amd64//:distroless_cc_debian13_nonroot_linux_amd64",
+    cmd = ["7001"],
+    entrypoint = ["./currency"],
+    exposed_ports = ["7001/tcp"],
+    tars = [":currency_layer"],
+    workdir = "/app",
+)
+
+oci_load(
+    name = "currency_load",
+    image = ":currency_image",
+    repo_tags = ["otel/demo-currency:bazel"],
+)

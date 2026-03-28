@@ -43,6 +43,7 @@ bazel test //src/checkout/... --config=ci --config=unit
 |--------|------|
 | `//src/checkout/money:money_test` | `unit` |
 | `//src/shipping:shipping_test` | `unit` |
+| `//src/currency:currency_proto_smoke_test` | `unit` |
 
 ---
 

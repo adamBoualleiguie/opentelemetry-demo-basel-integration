@@ -128,7 +128,8 @@ jobs:
           bazelisk build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci
           bazelisk build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image //src/llm:llm_image //src/load-generator:load_generator_image --config=ci
           bazelisk build //src/shipping:shipping //src/shipping:shipping_image --config=ci
-          bazelisk test //src/checkout/... //src/product-catalog/... //src/shipping/... //src/frontend:lint --config=ci
+          bazelisk build //src/currency:currency //src/currency:currency_image --config=ci
+          bazelisk test //src/checkout/... //src/product-catalog/... //src/shipping/... //src/currency:currency_proto_smoke_test //src/frontend:lint --config=ci
       - name: Bazel lint wrappers (Make-backed)
         run: bazelisk run //:lint
 

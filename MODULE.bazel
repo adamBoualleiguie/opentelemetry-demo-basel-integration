@@ -8,6 +8,21 @@ module(
     version = "0.0.0",
 )
 
+# BZ-092: Without this, `opentelemetry-cpp` / `grpc` edges pull protobuf 33+ and grpc 1.69+, which
+# breaks `@@grpc~//:grpc++_base` (expects `@@protobuf~//upb:mem` targets present in older protobuf).
+single_version_override(
+    module_name = "protobuf",
+    version = "29.3",
+)
+single_version_override(
+    module_name = "grpc",
+    version = "1.66.0.bcr.2",
+)
+single_version_override(
+    module_name = "abseil-cpp",
+    version = "20240116.1",
+)
+
 # M1: protobuf + Go gRPC codegen.
 # M3 BZ-034/BZ-070/BZ-071: grpc-java supplies java_grpc_library + aligned Maven (io_grpc_grpc_java).
 bazel_dep(name = "protobuf", version = "29.3")
@@ -108,6 +123,12 @@ go_sdk.download(version = "1.25.0")
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_work = "//:go.work")
 use_repo(go_deps, "com_github_google_uuid", "com_github_ibm_sarama", "com_github_lib_pq", "com_github_open_feature_go_sdk", "com_github_open_feature_go_sdk_contrib_hooks_open_telemetry", "com_github_open_feature_go_sdk_contrib_providers_flagd", "com_github_xsam_otelsql", "io_opentelemetry_go_contrib_bridges_otelslog", "io_opentelemetry_go_contrib_instrumentation_google_golang_org_grpc_otelgrpc", "io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp", "io_opentelemetry_go_contrib_instrumentation_runtime", "io_opentelemetry_go_contrib_otelconf", "io_opentelemetry_go_otel", "io_opentelemetry_go_otel_exporters_otlp_otlplog_otlploggrpc", "io_opentelemetry_go_otel_exporters_otlp_otlpmetric_otlpmetricgrpc", "io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracegrpc", "io_opentelemetry_go_otel_log", "io_opentelemetry_go_otel_metric", "io_opentelemetry_go_otel_sdk", "io_opentelemetry_go_otel_sdk_log", "io_opentelemetry_go_otel_sdk_metric", "io_opentelemetry_go_otel_trace", "org_golang_google_grpc", "org_golang_google_protobuf")
+
+# M3 BZ-092: C++ currency — gRPC C++ codegen (BCR grpc) + opentelemetry-cpp 1.24 (OTLP gRPC exporters, SDK).
+# Direct `grpc` dep so `@com_github_grpc_grpc//bazel:cc_grpc_library.bzl` is loadable from `//pb`.
+bazel_dep(name = "grpc", version = "1.66.0.bcr.2", repo_name = "com_github_grpc_grpc")
+bazel_dep(name = "opentelemetry-cpp", version = "1.24.0.bcr.1")
+bazel_dep(name = "googletest", version = "1.14.0.bcr.1", repo_name = "com_google_googletest")
 
 # M3 BZ-090: Rust shipping — rules_rust toolchain + crate_universe from Cargo.lock (repin: CARGO_BAZEL_REPIN=1 bazel sync --only=shipping_crates).
 bazel_dep(name = "rules_rust", version = "0.69.0")
