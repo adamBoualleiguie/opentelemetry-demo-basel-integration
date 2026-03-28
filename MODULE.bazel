@@ -352,6 +352,30 @@ oci.pull(
         "linux/arm64",
     ],
 )
+
+# BZ-097 frontend-proxy: docker.io/envoyproxy/envoy:v1.34-latest (matches src/frontend-proxy/Dockerfile FROM).
+# Index digest: docker buildx imagetools inspect envoyproxy/envoy:v1.34-latest
+oci.pull(
+    name = "envoy_v134_latest",
+    digest = "sha256:a27ac382cb5f4d3bebb665a4f557a8e96266a724813e1b89a6fb0b31d4f63a39",
+    image = "docker.io/envoyproxy/envoy",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
+
+# BZ-097 image-provider: nginxinc/nginx-unprivileged:1.29.0-alpine3.22-otel (matches Dockerfile FROM).
+# Index digest: docker buildx imagetools inspect nginxinc/nginx-unprivileged:1.29.0-alpine3.22-otel
+oci.pull(
+    name = "nginx_unprivileged_1290_alpine322_otel",
+    digest = "sha256:5a41b6424e817a6c97c057e4be7fb8fdc19ec95845c784487dee1fa795ef4d03",
+    image = "docker.io/nginxinc/nginx-unprivileged",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
 use_repo(
     oci,
     "debian_bullseye_20251117_slim",
@@ -378,6 +402,12 @@ use_repo(
     "dotnet_aspnet_10",
     "dotnet_aspnet_10_linux_amd64",
     "dotnet_aspnet_10_linux_arm64",
+    "envoy_v134_latest",
+    "envoy_v134_latest_linux_amd64",
+    "envoy_v134_latest_linux_arm64",
+    "nginx_unprivileged_1290_alpine322_otel",
+    "nginx_unprivileged_1290_alpine322_otel_linux_amd64",
+    "nginx_unprivileged_1290_alpine322_otel_linux_arm64",
     "php_84_cli_alpine322",
     "php_84_cli_alpine322_linux_amd64",
     "php_84_cli_alpine322_linux_arm64",

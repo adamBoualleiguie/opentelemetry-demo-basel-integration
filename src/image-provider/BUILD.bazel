@@ -1,0 +1,67 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-097: nginx static + OpenTelemetry module — baked config, config test, OCI on nginxinc/nginx-unprivileged:1.29.0-alpine3.22-otel.
+
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["nginx.conf.template"])
+
+_STATIC = glob(["static/**"])
+
+genrule(
+    name = "nginx_compose_defaults_conf",
+    srcs = ["nginx.conf.template"],
+    outs = ["nginx.conf"],
+    cmd = "$(location bake_nginx.sh) $@ $(location nginx.conf.template)",
+    tags = ["no-sandbox"],
+    tools = ["bake_nginx.sh"],
+)
+
+pkg_tar(
+    name = "image_provider_static_layer",
+    srcs = _STATIC,
+    package_dir = "static",
+)
+
+pkg_tar(
+    name = "image_provider_nginx_layer",
+    srcs = [":nginx_compose_defaults_conf"],
+    package_dir = "etc/nginx",
+)
+
+oci_image(
+    name = "image_provider_image",
+    base = "@nginx_unprivileged_1290_alpine322_otel_linux_amd64//:nginx_unprivileged_1290_alpine322_otel_linux_amd64",
+    cmd = ["-g", "daemon off;"],
+    entrypoint = ["/usr/sbin/nginx"],
+    exposed_ports = ["8081/tcp"],
+    tars = [
+        ":image_provider_static_layer",
+        ":image_provider_nginx_layer",
+    ],
+    user = "101",
+)
+
+oci_load(
+    name = "image_provider_load",
+    image = ":image_provider_image",
+    repo_tags = ["otel/demo-image-provider:bazel"],
+)
+
+sh_test(
+    name = "image_provider_config_test",
+    srcs = ["run_image_provider_config_test.sh"],
+    data = [
+        "bake_nginx.sh",
+        "nginx.conf.template",
+    ],
+    size = "small",
+    tags = [
+        "no-sandbox",
+        "unit",
+    ],
+)

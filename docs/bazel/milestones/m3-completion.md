@@ -26,6 +26,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
    - [7.4 `src/flagd-ui` — Elixir / Phoenix (BZ-094)](#74-service-srcflagd-ui--elixir--phoenix-bz-094)  
    - [7.5 `src/quote` — PHP (BZ-095)](#75-service-srcquote--php-bz-095)  
    - [7.6 `src/react-native-app` — Expo / React Native, Android only (BZ-096)](#76-service-srcreact-native-app--expo--react-native-android-only-bz-096)  
+   - [7.7 `src/frontend-proxy` / `src/image-provider` — Envoy / nginx (BZ-097)](#77-srcfrontend-proxy--srcimage-provider--envoy--nginx-bz-097)  
 8. [Epic F — Node: frontend (BZ-051)](#8-epic-f--node-frontend-bz-051)  
 9. [Epic M — OCI images (BZ-120, BZ-121)](#9-epic-m--oci-images-bz-120-bz-121)  
 10. [Epic N — Test taxonomy (BZ-130)](#10-epic-n--test-taxonomy-bz-130)  
@@ -53,6 +54,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | **N** | **BZ-131**–**133** | Cypress, Tracetest, consolidate unit tests | M4–M5 | Out of M3 strict scope; noted for sequencing. |
 | **—** | **BZ-095** | `quote` — PHP / Composer | M3 (this fork) | **`composer_install`** + **`sh_test`** smoke + **`oci_image`** on **`php:8.4-cli-alpine3.22`**; documented in **§7.5** / **§9.13** (not a separate line in upstream backlog — local ID aligned after **BZ-094**). |
 | **—** | **BZ-096** | `react-native-app` — Android (Expo) | M3 (this fork) | Hermetic **`@rn_android_sdk`** (Temurin 17 + **sdkmanager**); **`sh_test` `rn_js_checks`** (**`tsc`** + **`jest`**); **`manual`** **`android_debug_apk`** (**Gradle** **`assembleDebug`**). **iOS not in Bazel.** See **§7.6**. |
+| **—** | **BZ-097** | `frontend-proxy` (Envoy), `image-provider` (nginx) | M3 (this fork) | **`genrule`** + host **`envsubst`** bake templates to fixed configs; **`oci_image`** on digest-pinned **Envoy** / **nginx-unprivileged-otel**; **`sh_test`** config smoke (**`unit`**, **`no-sandbox`**). See **§7.7** / **§9.14** (not a separate upstream backlog line — local ID after **BZ-096**). |
 
 **Proto dependencies called out by backlog:** **BZ-032** (Python grpc), **BZ-034** (Java/Kotlin), **BZ-036** (.NET) — these tie M3 services to the central `pb/demo.proto` story from M1 (`docs/bazel/proto-policy.md`).
 
@@ -74,10 +76,12 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | Elixir `flagd-ui` | M3 (**BZ-094** + **BZ-121** OCI) | **`mix_release`** (**`//tools/bazel:mix_release.bzl`**) → **`//src/flagd-ui:flagd_ui_publish`** (host **`mix release`**, **`requires-network`**). **`sh_test` `flagd_ui_mix_test`** (**`mix test`**, **`unit`**, **`requires-network`**, **`size = "enormous"`**). **OCI:** **`flagd_ui_image`** / **`flagd_ui_load`** → **`otel/demo-flagd-ui:bazel`** on **`debian:bullseye-20251117-slim`** (**`debian_bullseye_20251117_slim`**). **CI:** **`erlef/setup-beam`** (**Elixir 1.19.3**, **OTP 28.0.2**) + **`build-essential`** / **`git`**. |
 | PHP `quote` | M3 (**BZ-095** + **BZ-121** OCI) | **`composer_install`** (**`//tools/bazel:composer_install.bzl`**) → **`//src/quote:quote_publish`** (host **`composer install`**, **`requires-network`** — no **`composer.lock`**; mirrors **Dockerfile** vendor flags). **`sh_test` `quote_composer_smoke_test`** (**`unit`**, **`requires-network`**, **`size = "enormous"`** — **`vendor/autoload.php`** smoke). **OCI:** **`quote_image`** / **`quote_load`** → **`otel/demo-quote:bazel`** on **`php:8.4-cli-alpine3.22`** (**`php_84_cli_alpine322`**). **CI:** **`shivammathur/setup-php`** (**PHP 8.4** + **Composer**). **Caveat:** **Dockerfile** installs **PECL** extensions (**`opentelemetry`**, **`protobuf`**, …); Bazel base is stock **CLI** image — see **`oci-policy.md`**. |
 | Expo **`react-native-app`** | M3 (**BZ-096**, **Android only**) | **Hermetic** **`@rn_android_sdk`** (**`tools/bazel/rn_android/sdk_repo.bzl`**) — **Temurin 17** + **cmdline-tools** + **`sdkmanager`** (**API 34**, **build-tools 34.0.0**, **NDK 26.1.10909125**); **linux-amd64** only. **`sh_test` `rn_js_checks`**: **`npm ci`**, **`tsc --noEmit`**, **`jest --ci --passWithNoTests`** (**`unit`**, **`requires-network`**). **`rn_android_debug_apk` `android_debug_apk`**: **`npm ci`** + **`./gradlew :app:assembleDebug`** (**`manual`**, **`no-sandbox`**, **`requires-network`**). **JDK for Gradle** inside the APK action comes from **`@rn_android_sdk`**, **not** SDKMAN / **`~/.sdkman`**. **No** **`rules_js`** hub for this app (lockfile stays **`npm`**). **No iOS** targets. **No container image** (mobile APK artifact). |
+| Envoy **`frontend-proxy`** | M3 (**BZ-097**) | **`genrule` `envoy_compose_defaults_yaml`** (**`bake_envoy.sh`**, **`envsubst`** on **`envoy.tmpl.yaml`**) → **`pkg_tar`** **`/etc/envoy/envoy.yaml`**; **`oci_image` `frontend_proxy_image`** / **`oci_load` `frontend_proxy_load`** → **`otel/demo-frontend-proxy:bazel`** (**`envoy_v134_latest`**). **`sh_test` `frontend_proxy_config_test`** (**`unit`**, **`no-sandbox`**). Host needs **`gettext-base`** for **`genrule`** / tests. |
+| nginx **`image-provider`** | M3 (**BZ-097**) | **`genrule` `nginx_compose_defaults_conf`** (**`bake_nginx.sh`**) → **`pkg_tar`** **`/etc/nginx/nginx.conf`** + static assets under **`/static`**; **`oci_image` `image_provider_image`** (**`user = "101"`**) / **`image_provider_load`** → **`otel/demo-image-provider:bazel`** (**`nginx_unprivileged_1290_alpine322_otel`**). **`sh_test` `image_provider_config_test`** (**`unit`**, **`no-sandbox`**). |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, **Ruby `email`**, **Elixir `flagd-ui`**, and **PHP `quote`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**; **Ruby `email`** uses **`ruby:3.4.8-slim-bookworm`**; **Elixir `flagd-ui`** uses **`debian:bullseye-slim`** + **`mix release`** tarball; **PHP `quote`** uses **`php:8.4-cli-alpine3.22`** + **`composer install`** tree under **`/var/www`**. |
-| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`**, **`//src/currency:currency_proto_smoke_test`**, **`//src/email:email_gems_smoke_test`**, **`//src/flagd-ui:flagd_ui_mix_test`**, **`//src/quote:quote_composer_smoke_test`**, **`//src/react-native-app:rn_js_checks`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
+| Pilot OCI image | M3 (BZ-121 + **BZ-097**) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, **Ruby `email`**, **Elixir `flagd-ui`**, **PHP `quote`**, **Envoy `frontend-proxy`**, and **nginx `image-provider`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121), **§9.14**). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**; **Ruby `email`** uses **`ruby:3.4.8-slim-bookworm`**; **Elixir `flagd-ui`** uses **`debian:bullseye-slim`** + **`mix release`** tarball; **PHP `quote`** uses **`php:8.4-cli-alpine3.22`** + **`composer install`** tree under **`/var/www`**; **BZ-097** uses **upstream Envoy** and **nginxinc/nginx-unprivileged** **`-otel`** with **baked** configs (**§7.7**). |
+| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`**, **`//src/currency:currency_proto_smoke_test`**, **`//src/email:email_gems_smoke_test`**, **`//src/flagd-ui:flagd_ui_mix_test`**, **`//src/quote:quote_composer_smoke_test`**, **`//src/react-native-app:rn_js_checks`**, **`//src/frontend-proxy:frontend_proxy_config_test`**, **`//src/image-provider:image_provider_config_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
 
@@ -620,6 +624,51 @@ bazel test //src/react-native-app:rn_js_checks --config=unit
 
 ---
 
+### 7.7 `src/frontend-proxy` / `src/image-provider` — Envoy / nginx (**BZ-097**)
+
+| Field | Detail |
+|-------|--------|
+| **Stacks** | **Envoy** reverse proxy (**`envoy.tmpl.yaml`**); **nginx** static file server + OpenTelemetry module (**`nginx.conf.template`**, **`static/**`**). |
+| **Build today** | **`Dockerfile`** each: **`gettext-base`** (Envoy only), **`envsubst` at container start** so Compose can override upstream hostnames and ports. |
+| **Proto** | Neither service compiles **`pb/demo.proto`**. |
+
+**Why bake at build time instead of `envsubst` in the image**
+
+- **`rules_oci`** layering does not mirror **`RUN apt-get install gettext-base`** on the stock Envoy base the way the **Dockerfile** does, and we avoid extra mutable layers for a small demo edge case.
+- **`bake_envoy.sh`** / **`bake_nginx.sh`** run **`envsubst` on the Bazel host** (or CI runner) during **`genrule`**, producing a **fixed** **`envoy.yaml`** / **`nginx.conf`** embedded in **`pkg_tar`** layers. Defaults match **`.env`** / **docker-compose** service DNS names (**`frontend`**, **`otel-collector`**, **`image-provider`**, …).
+- **Implication:** to change upstreams in the Bazel image, **rebuild** with env vars exported before **`bazel build`**, or keep using **`docker compose build`** for runtime substitution parity.
+
+**`frontend-proxy` — what we implemented**
+
+1. **`MODULE.bazel`** — **`oci.pull`** **`envoy_v134_latest`** (**`docker.io/envoyproxy/envoy`**, tag **`v1.34-latest`**, multi-arch index digest **`sha256:a27ac382cb5f4d3bebb665a4f557a8e96266a724813e1b89a6fb0b31d4f63a39`**). **`use_repo`** exports **`envoy_v134_latest_linux_amd64`** / **`arm64`**.
+2. **`src/frontend-proxy/BUILD.bazel`** — **`genrule` `envoy_compose_defaults_yaml`** (**`tags = ["no-sandbox"]`**) invokes **`bake_envoy.sh`**; **`pkg_tar` `frontend_proxy_envoy_layer`** → **`/etc/envoy/envoy.yaml`**; **`oci_image` `frontend_proxy_image`** (**`entrypoint`** **`["/usr/local/bin/envoy"]`**, **`cmd`** **`["-c", "/etc/envoy/envoy.yaml"]`**, **`8080/tcp`**, **`10000/tcp`**); **`oci_load` `frontend_proxy_load`** → **`otel/demo-frontend-proxy:bazel`**.
+3. **`sh_test` `frontend_proxy_config_test`** — **`run_frontend_proxy_config_test.sh`** re-bakes and asserts YAML shape (**`unit`**, **`no-sandbox`**).
+
+**`image-provider` — what we implemented**
+
+1. **`MODULE.bazel`** — **`oci.pull`** **`nginx_unprivileged_1290_alpine322_otel`** (**`docker.io/nginxinc/nginx-unprivileged`**, tag **`1.29.0-alpine3.22-otel`**, multi-arch index digest **`sha256:5a41b6424e817a6c97c057e4be7fb8fdc19ec95845c784487dee1fa795ef4d03`**).
+2. **`src/image-provider/BUILD.bazel`** — **`genrule` `nginx_compose_defaults_conf`**; **`pkg_tar` `image_provider_static_layer`** (**`/static`**); **`pkg_tar` `image_provider_nginx_layer`** → **`/etc/nginx/nginx.conf`**; **`oci_image` `image_provider_image`** (**`user = "101"`**, **`entrypoint`** **`["/usr/sbin/nginx"]`**, **`cmd`** **`["-g", "daemon off;"]`**, **`8081/tcp`**); **`oci_load` `image_provider_load`** → **`otel/demo-image-provider:bazel`**.
+3. **`sh_test` `image_provider_config_test`** — **`run_image_provider_config_test.sh`** (**`unit`**, **`no-sandbox`**). **`bake_nginx.sh`** uses the same **`envsubst '$…'`** variable list as the **Dockerfile** **`CMD`**.
+
+**Prerequisites**
+
+- **`envsubst`** (**Debian/Ubuntu: `gettext-base`**) on any machine that runs the **`genrule`** or the **`sh_test`**s. **CI:** **`.github/workflows/checks.yml`** installs **`gettext-base`** alongside **`build-essential`** / **`git`**.
+
+**Verification**
+
+```bash
+bazel build //src/frontend-proxy:frontend_proxy_image //src/image-provider:image_provider_image --config=ci
+bazel test //src/frontend-proxy:frontend_proxy_config_test //src/image-provider:image_provider_config_test --config=ci
+# optional:
+# bazel run //src/frontend-proxy:frontend_proxy_load
+# bazel run //src/image-provider:image_provider_load
+# docker image ls | grep -E 'demo-frontend-proxy:bazel|demo-image-provider:bazel'
+```
+
+**Status in this repository:** **Implemented** (**B** / **T** / **I** for both). **`docs/bazel/oci-policy.md`** (**Envoy** / **nginx** subsections) and **`docs/bazel/service-tracker.md`** list **B/T/I**.
+
+---
+
 ## 8. Epic F — Node: frontend (BZ-051)
 
 ### 8.1 Service: `src/frontend`
@@ -683,7 +732,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**), **C++ `currency`** (**`cc_binary`** + **distroless cc** — **§9.10**), **Ruby `email`** (**`rules_ruby`** **`bundle_fetch`** + **`ruby:3.4.8-slim-bookworm`** — **§9.11**), **Elixir `flagd-ui`** (**`mix_release`** + **`debian:bullseye-slim`** — **§9.12**), and **PHP `quote`** (**`composer_install`** + **`php:8.4-cli-alpine3.22`** — **§9.13** / **`oci-policy.md`**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** + **BZ-097** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**), **C++ `currency`** (**`cc_binary`** + **distroless cc** — **§9.10**), **Ruby `email`** (**`rules_ruby`** **`bundle_fetch`** + **`ruby:3.4.8-slim-bookworm`** — **§9.11**), **Elixir `flagd-ui`** (**`mix_release`** + **`debian:bullseye-slim`** — **§9.12**), **PHP `quote`** (**`composer_install`** + **`php:8.4-cli-alpine3.22`** — **§9.13**), **Envoy `frontend-proxy`** and **nginx `image-provider`** (**baked configs** — **§9.14** / **`oci-policy.md`**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -692,7 +741,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 **Module wiring (`MODULE.bazel`):**
 
 - **`bazel_dep`:** `rules_oci` 2.3.0, `aspect_bazel_lib` 2.21.1, `tar.bzl` 0.7.0, **`rules_pkg`** 1.0.1 (Python service **`pkg_tar`** layers).
-- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_cc_debian13_nonroot`** (Rust **shipping**), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), **`ruby_348_slim_bookworm`** (Ruby **email**), **`debian_bullseye_20251117_slim`** (Elixir **flagd-ui** runtime), **`php_84_cli_alpine322`** (PHP **quote** — **`docker.io/library/php:8.4-cli-alpine3.22`** index), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
+- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_cc_debian13_nonroot`** (Rust **shipping**), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), **`ruby_348_slim_bookworm`** (Ruby **email**), **`debian_bullseye_20251117_slim`** (Elixir **flagd-ui** runtime), **`php_84_cli_alpine322`** (PHP **quote** — **`docker.io/library/php:8.4-cli-alpine3.22`** index), **`envoy_v134_latest`** (**Envoy `frontend-proxy`**), **`nginx_unprivileged_1290_alpine322_otel`** (**nginx `image-provider`**), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
 - **Why there is no `oci.toolchains()` in the root module:** the **`rules_oci` module’s own `MODULE.bazel` already calls `oci.toolchains()`**. Bzlmod merges extension tags; a second `oci.toolchains()` from the root duplicated crane repositories and broke analysis. The root module still **`use_repo`**-exports **`oci_crane_toolchains`** and **`oci_regctl_toolchains`** and **`register_toolchains(...)`** for them so crane/regctl are visible from this repo.
 - **Supporting toolchains:** `aspect_bazel_lib` **`jq`** + **`zstd`**; **`tar.bzl`** **`bsd_tar_toolchains`** — required by **`rules_oci`** / aspect tar rules.
 
@@ -950,6 +999,27 @@ bazel test //src/quote:quote_composer_smoke_test --config=ci
 - **`bazel_smoke`** builds **`quote_publish`** and **`quote_image`**; **`quote_composer_smoke_test`** runs a **second** **`composer install`** (no shared **`vendor/`** between the action and the test).  
 - **§7.5** / **`oci-policy.md`**: **PECL** extensions (**`opentelemetry`**, **`protobuf`**, …) from **`install-php-extensions`** are **not** in the Bazel base image.
 
+### 9.14 BZ-097 — Extension: Envoy **`frontend-proxy`** + nginx **`image-provider`**
+
+**What we added**
+
+1. **`MODULE.bazel`** — **`oci.pull`** roots **`envoy_v134_latest`** and **`nginx_unprivileged_1290_alpine322_otel`** with **`use_repo`** for **linux/amd64** and **linux/arm64** manifests (images pin **amd64** bases today, same pattern as **`checkout`**).  
+2. **`src/frontend-proxy/`** — **`bake_envoy.sh`** + **`genrule`** + **`pkg_tar`** + **`oci_image` / `oci_load`** + **`frontend_proxy_config_test`**.  
+3. **`src/image-provider/`** — **`bake_nginx.sh`** + **`genrule`** + two **`pkg_tar`** layers + **`oci_image` / `oci_load`** + **`image_provider_config_test`**.  
+4. **`.github/workflows/checks.yml`** — **`gettext-base`** on the runner; **`bazel build`** both **`*_image`** targets; **`bazel test`** both config **`sh_test`**s.
+
+**Verification**
+
+```bash
+bazel build //src/frontend-proxy:frontend_proxy_image //src/image-provider:image_provider_image --config=ci
+bazel test //src/frontend-proxy:frontend_proxy_config_test //src/image-provider:image_provider_config_test --config=ci
+```
+
+**Caveats**
+
+- **Runtime `envsubst`** vs **bake-time** substitution — see **§7.7** and **`oci-policy.md`** (**Envoy** / **nginx** rows).  
+- **`bazel_smoke`** builds **`frontend_proxy_image`** and **`image_provider_image`** (not **`oci_load`**) like other OCI targets.
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -974,7 +1044,7 @@ bazel test //src/quote:quote_composer_smoke_test --config=ci
 | `slow` | Large timeouts. |
 | `manual` | Not run in CI unless explicitly selected. |
 
-**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, **`sh_test`** (or other runners), or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet). **`//src/email:email_gems_smoke_test`** is tagged **`unit`** (**BZ-093** — Bundler + gem load smoke). **`//src/flagd-ui:flagd_ui_mix_test`** is tagged **`unit`** (**BZ-094** — **`mix test`**, **`requires-network`**). **`//src/quote:quote_composer_smoke_test`** is tagged **`unit`** (**BZ-095** — **`composer install`** + **`vendor/autoload.php`** smoke, **`requires-network`**). **`//src/react-native-app:rn_js_checks`** is tagged **`unit`** (**BZ-096** — **`npm ci`**, **`tsc`**, **`jest`**, **`requires-network`**).
+**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, **`sh_test`** (or other runners), or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet). **`//src/email:email_gems_smoke_test`** is tagged **`unit`** (**BZ-093** — Bundler + gem load smoke). **`//src/flagd-ui:flagd_ui_mix_test`** is tagged **`unit`** (**BZ-094** — **`mix test`**, **`requires-network`**). **`//src/quote:quote_composer_smoke_test`** is tagged **`unit`** (**BZ-095** — **`composer install`** + **`vendor/autoload.php`** smoke, **`requires-network`**). **`//src/react-native-app:rn_js_checks`** is tagged **`unit`** (**BZ-096** — **`npm ci`**, **`tsc`**, **`jest`**, **`requires-network`**). **`//src/frontend-proxy:frontend_proxy_config_test`** and **`//src/image-provider:image_provider_config_test`** are tagged **`unit`** (**BZ-097** — baked Envoy/nginx config smoke, **`no-sandbox`**).
 
 ---
 
@@ -993,6 +1063,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 6d. **BZ-094 / BZ-121** — Elixir **`flagd-ui`** (**`mix_release`**, **`sh_test`**, **`flagd_ui_image`**) — **done** in this fork (§7.4, §9.12).  
 6e. **BZ-095 / BZ-121** — PHP **`quote`** (**`composer_install`**, **`sh_test`**, **`quote_image`**) — **done** in this fork (§7.5, §9.13).  
 6f. **BZ-096** — Expo **`react-native-app`** (**Android only** — **`@rn_android_sdk`**, **`rn_js_checks`**, **`android_debug_apk`**) — **done** in this fork (§7.6).  
+6g. **BZ-097** — Envoy **`frontend-proxy`** + nginx **`image-provider`** (**baked configs**, **`oci_image`**, config **`sh_test`**) — **done** in this fork (§7.7, §9.14).  
 7. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
 
 ---
@@ -1015,6 +1086,7 @@ bazel build //src/currency:currency //src/currency:currency_image --config=ci   
 bazel build //src/email:email //src/email:email_image --config=ci   # BZ-093 + BZ-121 OCI
 bazel build //src/flagd-ui:flagd_ui_publish //src/flagd-ui:flagd_ui_image --config=ci   # BZ-094 + BZ-121 OCI (host mix)
 bazel build //src/quote:quote_publish //src/quote:quote_image --config=ci   # BZ-095 + BZ-121 OCI (host PHP + Composer)
+bazel build //src/frontend-proxy:frontend_proxy_image //src/image-provider:image_provider_image --config=ci   # BZ-097 (host gettext / envsubst)
 bazel test  //src/checkout/... //src/product-catalog/... --config=ci
 bazel test  //src/shipping/... --config=ci      # BZ-090 (rust_test)
 bazel test  //src/currency:currency_proto_smoke_test --config=ci   # BZ-092 (cc_test, unit)
@@ -1022,8 +1094,9 @@ bazel test  //src/email:email_gems_smoke_test --config=ci   # BZ-093 (rb_test, u
 bazel test  //src/flagd-ui:flagd_ui_mix_test --config=ci   # BZ-094 (sh_test / mix test, unit)
 bazel test  //src/quote:quote_composer_smoke_test --config=ci   # BZ-095 (sh_test / composer + autoload, unit)
 bazel test  //src/react-native-app:rn_js_checks --config=ci   # BZ-096 (npm ci + tsc + jest, unit)
+bazel test  //src/frontend-proxy:frontend_proxy_config_test //src/image-provider:image_provider_config_test --config=ci   # BZ-097 (baked config smoke)
 bazel test  //src/frontend:lint --config=ci   # BZ-051 (Next ESLint)
-bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test //src/quote:quote_composer_smoke_test //src/react-native-app:rn_js_checks --config=unit
+bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test //src/quote:quote_composer_smoke_test //src/react-native-app:rn_js_checks //src/frontend-proxy:frontend_proxy_config_test //src/image-provider:image_provider_config_test --config=unit
 bazel test  //... --config=unit   # all tests tagged `unit` (see docs/bazel/test-tags.md)
 bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 (checkout)
 bazel build //src/payment:payment_image //src/payment:payment_load --config=ci       # BZ-121 (payment)

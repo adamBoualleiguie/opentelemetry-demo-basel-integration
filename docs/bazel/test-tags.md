@@ -48,6 +48,8 @@ bazel test //src/checkout/... --config=ci --config=unit
 | `//src/flagd-ui:flagd_ui_mix_test` | `unit` |
 | `//src/quote:quote_composer_smoke_test` | `unit` |
 | `//src/react-native-app:rn_js_checks` | `unit` |
+| `//src/frontend-proxy:frontend_proxy_config_test` | `unit` |
+| `//src/image-provider:image_provider_config_test` | `unit` |
 
 ---
 

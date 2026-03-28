@@ -1,0 +1,61 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-097: Envoy edge proxy — baked config (Compose/.env defaults), config test, OCI on envoyproxy/envoy:v1.34-latest.
+
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "envoy.tmpl.yaml",
+    "README.md",
+])
+
+genrule(
+    name = "envoy_compose_defaults_yaml",
+    srcs = ["envoy.tmpl.yaml"],
+    outs = ["envoy.yaml"],
+    cmd = "$(location bake_envoy.sh) $@ $(location envoy.tmpl.yaml)",
+    tags = ["no-sandbox"],
+    tools = ["bake_envoy.sh"],
+)
+
+pkg_tar(
+    name = "frontend_proxy_envoy_layer",
+    srcs = [":envoy_compose_defaults_yaml"],
+    package_dir = "etc/envoy",
+)
+
+oci_image(
+    name = "frontend_proxy_image",
+    base = "@envoy_v134_latest_linux_amd64//:envoy_v134_latest_linux_amd64",
+    cmd = ["-c", "/etc/envoy/envoy.yaml"],
+    entrypoint = ["/usr/local/bin/envoy"],
+    exposed_ports = [
+        "8080/tcp",
+        "10000/tcp",
+    ],
+    tars = [":frontend_proxy_envoy_layer"],
+)
+
+oci_load(
+    name = "frontend_proxy_load",
+    image = ":frontend_proxy_image",
+    repo_tags = ["otel/demo-frontend-proxy:bazel"],
+)
+
+sh_test(
+    name = "frontend_proxy_config_test",
+    srcs = ["run_frontend_proxy_config_test.sh"],
+    data = [
+        "bake_envoy.sh",
+        "envoy.tmpl.yaml",
+    ],
+    size = "small",
+    tags = [
+        "no-sandbox",
+        "unit",
+    ],
+)

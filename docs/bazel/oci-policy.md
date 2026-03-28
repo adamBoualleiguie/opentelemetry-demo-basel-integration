@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** + **C++ `currency`** + **Ruby `email`** + **Elixir `flagd-ui`** + **PHP `quote`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet**), Rust (**`rust_binary`** + **distroless `cc`**), C++ (**distroless `cc`**), Ruby (**`ruby:3.4.8-slim-bookworm`**), Elixir (**`mix release`** + **`debian:bullseye-slim`**), and PHP (**`composer install`** + **`php:8.4-cli-alpine3.22`**): digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121 + BZ-097)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** + **C++ `currency`** + **Ruby `email`** + **Elixir `flagd-ui`** + **PHP `quote`** + **Envoy `frontend-proxy`** + **nginx `image-provider`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet**), Rust (**`rust_binary`** + **distroless `cc`**), C++ (**distroless `cc`**), Ruby, Elixir (**`mix release`**), PHP, **Envoy** (**`envoyproxy/envoy`** + baked YAML), **nginx** (**`nginxinc/nginx-unprivileged`** OTEL + **`/static`**): digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -122,6 +122,26 @@ This note records the **chosen direction** for building container images with Ba
 | **Runtime** | **`ENTRYPOINT`** **`["php", "public/index.php"]`**, **`WORKDIR`** **`/var/www`**, **`8090/tcp`** (demo **`QUOTE_PORT`** in **`.env`**). **`QUOTE_PORT`** must be set at **`docker run`** (the app reads **`getenv('QUOTE_PORT')`**). |
 | **Caveat** | **`src/quote/Dockerfile`** installs **PECL** extensions via **`install-php-extensions`** (**`opcache`**, **`pcntl`**, **`protobuf`**, **`opentelemetry`**). The stock **`php:8.4-cli-alpine`** base used here does **not** run that step — **OpenTelemetry** for PHP may fall back to **pure PHP** auto-instrumentation where supported; for **full** extension parity (or **grpc**), build from **`src/quote/Dockerfile`** or add a custom base image. The **Dockerfile** also runs **`composer`** as **`USER www-data`**; the Bazel image runs as the image default user (**root** on this base unless you add **`user`** metadata — not set today). |
 
+### Envoy (`frontend-proxy`) — BZ-097
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | **`//src/frontend-proxy:frontend_proxy_image`**, **`frontend_proxy_load`** → **`otel/demo-frontend-proxy:bazel`**. |
+| **Build** | **`genrule` `envoy_compose_defaults_yaml`** runs **`bake_envoy.sh`** (**`envsubst`**) on **`envoy.tmpl.yaml`** with defaults aligned to **`.env`** / **docker-compose** service hostnames (**`frontend`**, **`otel-collector`**, …). **`pkg_tar`** places **`/etc/envoy/envoy.yaml`**. |
+| **Base** | **`docker.io/envoyproxy/envoy`** **`v1.34-latest`** (multi-arch index digest **`sha256:a27ac382cb5f4d3bebb665a4f557a8e96266a724813e1b89a6fb0b31d4f63a39`** in **`MODULE.bazel`** as **`envoy_v134_latest`**). |
+| **Runtime** | **`ENTRYPOINT`** **`["/usr/local/bin/envoy"]`**, **`CMD`** **`["-c", "/etc/envoy/envoy.yaml"]`**, **`8080/tcp`** (**`ENVOY_PORT`**), **`10000/tcp`** (**`ENVOY_ADMIN_PORT`**). |
+| **Caveat** | **`src/frontend-proxy/Dockerfile`** installs **`gettext-base`** and runs **`envsubst` at container start** so any env can override upstreams. The Bazel image **bakes** YAML at **build** time — to change upstreams, rebuild with different env passed to **`bake_envoy.sh`** or use **`docker compose build`**. **`genrule`** / tests need **`envsubst`** (**`gettext-base`**) on the host. |
+
+### nginx (`image-provider`) — BZ-097
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | **`//src/image-provider:image_provider_image`**, **`image_provider_load`** → **`otel/demo-image-provider:bazel`**. |
+| **Build** | **`genrule` `nginx_compose_defaults_conf`** runs **`bake_nginx.sh`** (**`envsubst`** with the same variable list as the **Dockerfile** **`CMD`**) on **`nginx.conf.template`**. **`pkg_tar`** layers: **`/static/**`** (assets) + **`/etc/nginx/nginx.conf`**. |
+| **Base** | **`docker.io/nginxinc/nginx-unprivileged`** **`1.29.0-alpine3.22-otel`** (multi-arch index digest **`sha256:5a41b6424e817a6c97c057e4be7fb8fdc19ec95845c784487dee1fa795ef4d03`** in **`MODULE.bazel`** as **`nginx_unprivileged_1290_alpine322_otel`**). |
+| **Runtime** | **`user`** **`101`**, **`ENTRYPOINT`** **`["/usr/sbin/nginx"]`**, **`CMD`** **`["-g", "daemon off;"]`**, **`8081/tcp`** (**`IMAGE_PROVIDER_PORT`**). |
+| **Caveat** | **Dockerfile** runs **`envsubst` at start** and **`cat`**’s the config (debug). Bazel image uses **pre-baked** **`nginx.conf`** only. Stub **`/status`** remains in the template. |
+
 ## Out of scope at BZ-120
 
 - Full matrix parity with **`component-build-images.yml`** (BZ-122, **M4**).
@@ -129,5 +149,5 @@ This note records the **chosen direction** for building container images with Ba
 
 ## References
 
-- Milestone narrative: `docs/bazel/milestones/m3-completion.md` (Epic M, BZ-120–121).
+- Milestone narrative: `docs/bazel/milestones/m3-completion.md` (Epic M, BZ-120–121; **BZ-097** edge images in **§7.7** / **§9.14**).
 - Service tracker: `docs/bazel/service-tracker.md`.

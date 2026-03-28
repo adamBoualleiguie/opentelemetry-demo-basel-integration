@@ -112,10 +112,10 @@ jobs:
         with:
           elixir-version: '1.19.3'
           otp-version: '28.0.2'
-      - name: Install build deps for flagd-ui mix release
+      - name: Install build deps for flagd-ui mix release + gettext (BZ-097 baked Envoy/nginx)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git
+          sudo apt-get install -y build-essential git gettext-base
       - name: Set up PHP (quote Bazel — matches src/quote/Dockerfile PHP 8.4)
         uses: shivammathur/setup-php@v2
         with:
@@ -146,7 +146,8 @@ jobs:
           bazelisk build //src/email:email //src/email:email_image --config=ci
           bazelisk build //src/flagd-ui:flagd_ui_publish //src/flagd-ui:flagd_ui_image --config=ci
           bazelisk build //src/quote:quote_publish //src/quote:quote_image --config=ci
-          bazelisk test //src/checkout/... //src/product-catalog/... //src/shipping/... //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test //src/quote:quote_composer_smoke_test //src/react-native-app:rn_js_checks //src/frontend:lint --config=ci
+          bazelisk build //src/frontend-proxy:frontend_proxy_image //src/image-provider:image_provider_image --config=ci
+          bazelisk test //src/checkout/... //src/product-catalog/... //src/shipping/... //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test //src/quote:quote_composer_smoke_test //src/react-native-app:rn_js_checks //src/frontend-proxy:frontend_proxy_config_test //src/image-provider:image_provider_config_test //src/frontend:lint --config=ci
       - name: Bazel lint wrappers (Make-backed)
         run: bazelisk run //:lint
 
