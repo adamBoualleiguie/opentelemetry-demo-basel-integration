@@ -55,14 +55,14 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | Area | Backlog | In-repo today |
 |------|---------|----------------|
 | Go `checkout`, `product-catalog` | M2 (BZ-040/041) | **Built & tested** under Bazel (M2). M3 uses them for **BZ-121** pilot candidate. |
-| Node `payment` | M2 (BZ-050) | **`js_binary`** (M2). Pilot candidate for **BZ-121**. |
+| Node `payment` | M2 (BZ-050) | **`js_binary`** (M2) + **BZ-121** **`payment_image`** / **`payment_load`** (see §9.3). |
 | Python ×4 | M3 (BZ-060/061) | **Not started** — no `BUILD.bazel` under those `src/*` trees yet. |
 | Java `ad`, Kotlin `fraud-detection` | M3 (BZ-070/071) | **Not started** — Gradle remains source of truth. |
 | .NET `accounting` | M3 (BZ-080) | **Not started**. |
 | Rust `shipping` | M3 (BZ-090) | **Not started**. |
 | Next `frontend` | M3 (BZ-051) | **Not started**. |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**: `//src/checkout:checkout_image`, `//src/checkout:checkout_load` (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`** and **`payment`**: image + `oci_load` targets (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). |
 | Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
@@ -77,7 +77,7 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 |---------|-------|----------------------|------------|
 | **`src/checkout`** | Go | `go_library` / `go_binary`; Gazelle; `go_deps` from `go.work`; protos → `//pb:demo_go_proto_checkout`; **BZ-121** `oci_image` + `oci_load` | Extend with **tags** and more **`go_test`**; image rollout pattern for other services (**BZ-122**). |
 | **`src/product-catalog`** | Go | Same with `//pb:demo_go_proto_product_catalog` | Same as checkout. |
-| **`src/payment`** | Node | `aspect_rules_js`: `npm_translate_lock`, `npm_link_all_packages`, `js_binary` | Layer **Node** + runfiles into **oci_image**; match **Dockerfile** env/cmd. |
+| **`src/payment`** | Node | `aspect_rules_js` + **`js_image_layer`** + **`oci_image`** / **`oci_load`** (BZ-121); **`@opentelemetry/otlp-exporter-base`** declared in **`package.json`** so Node can resolve SDK transitive imports under the pnpm layout | Rollout pattern for other Node services; **BZ-122** CI matrix parity. |
 
 **Conversion steps (already applied in M2 — summary):**
 
@@ -289,16 +289,16 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and scopes the pilot to a single service first (**BZ-121**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and scopes **BZ-121** to proving OCI on **checkout** (Go) and **payment** (Node).
 
-### 9.2 BZ-121 — Pilot image (`checkout`)
+### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
 **Choice:** **`src/checkout`** (Go) — already built as **`//src/checkout:checkout`** in M2; static Linux binary fits **`gcr.io/distroless/static-debian12`** (nonroot).
 
 **Module wiring (`MODULE.bazel`):**
 
 - **`bazel_dep`:** `rules_oci` 2.3.0, `aspect_bazel_lib` 2.21.1, `tar.bzl` 0.7.0 (layer tar + toolchains).
-- **`oci.pull`** defines a digest-pinned base repo **`distroless_static_debian12_nonroot`** for **`linux/amd64`** and **`linux/arm64`** (same digest: `sha256:a9329520abc449e3b14d5bc3a6ffae065bdde0f02667fa10880c49b35c109fd1`, image `gcr.io/distroless/static-debian12`).
+- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout) and **`distroless_nodejs22_debian12_nonroot`** (payment), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
 - **Why there is no `oci.toolchains()` in the root module:** the **`rules_oci` module’s own `MODULE.bazel` already calls `oci.toolchains()`**. Bzlmod merges extension tags; a second `oci.toolchains()` from the root duplicated crane repositories and broke analysis. The root module still **`use_repo`**-exports **`oci_crane_toolchains`** and **`oci_regctl_toolchains`** and **`register_toolchains(...)`** for them so crane/regctl are visible from this repo.
 - **Supporting toolchains:** `aspect_bazel_lib` **`jq`** + **`zstd`**; **`tar.bzl`** **`bsd_tar_toolchains`** — required by **`rules_oci`** / aspect tar rules.
 
@@ -324,7 +324,29 @@ docker image ls | grep otel/demo-checkout
 
 **`bazel mod tidy` caveat:** tidy may report **`oci_crane_toolchains`** / **`oci_regctl_toolchains`** as indirect imports. They must stay in **`use_repo(oci, …)`** or analysis fails with “repository not defined”; do not let tidy drop them if builds break.
 
-**Next (out of BZ-121):** replicate the pattern for **`payment`** (Node runfiles + base image matching **`src/payment/Dockerfile`**), then **BZ-122** (per-service rollout and CI parity with **`component-build-images.yml`**).
+### 9.3 BZ-121 — Extension: **`payment`** (Node)
+
+**What we added**
+
+1. **`MODULE.bazel`** — second **`oci.pull`** for **`gcr.io/distroless/nodejs22-debian12`** (**`:nonroot`**), using the **image index digest** `sha256:13593b7570658e8477de39e2f4a1dd25db2f836d68a0ba771251572d23bb4f8e` so **linux/amd64** and **linux/arm64** variants resolve the same way as other multi-arch pulls. This matches the **runtime** stage of **`src/payment/Dockerfile`** (`gcr.io/distroless/nodejs22-debian12:nonroot`).
+
+2. **`src/payment/BUILD.bazel`** — **`js_image_layer`** from **`aspect_rules_js`** on **`//src/payment:payment`**, with **`root = "/usr/src/app"`** so the runfiles tree lands under the same prefix as the Dockerfile **`WORKDIR`**. **`oci_image`** uses **`filegroup`** + **`output_group`** to stack **package_store_3p**, **package_store_1p**, **node_modules**, and **app** layers **without** the **`node`** layer group, so the image uses the distroless **`/nodejs/bin/node`** binary instead of duplicating the rules_js toolchain.
+
+3. **Entrypoint / CMD** — **`entrypoint = ["/nodejs/bin/node"]`**, **`cmd = ["--require=./opentelemetry.js", "index.js"]`**, **`workdir`** = the directory that contains **`index.js`** inside runfiles (`.../payment.runfiles/_main/src/payment`). That mirrors the Dockerfile **`CMD`** while **`index.js`** still **`require()`s** `./opentelemetry.js` on its own (same as local **`bazel run`**).
+
+4. **`oci_load`** — **`//src/payment:payment_load`** tags the image **`otel/demo-payment:bazel`** for **`docker load`**.
+
+5. **`package.json` / `pnpm-lock.yaml`** — added a **direct** dependency **`@opentelemetry/otlp-exporter-base@0.213.0`**. Under the pnpm virtual-store layout, **`@opentelemetry/sdk-node`** could **`require('@opentelemetry/otlp-exporter-base')`** without a hoisted top-level **`node_modules`** entry; **`bazel run //src/payment:payment`** and the container both failed with **`MODULE_NOT_FOUND`** until this explicit dependency was added. The lockfile was refreshed with **pnpm v8** so **`lockfileVersion: '6.0'`** stays compatible with **`npm_translate_lock`** (pnpm v9+ lockfiles need **`pnpm.onlyBuiltDependencies`** in **`package.json`**).
+
+**Verification**
+
+```bash
+bazel build //src/payment:payment_image //src/payment:payment_load --config=ci
+bazel run //src/payment:payment_load
+docker run --rm -e PAYMENT_PORT=50051 otel/demo-payment:bazel
+```
+
+**Next (BZ-122 / M4):** replicate for other services, align **`component-build-images.yml`**, registry push (**BZ-123**).
 
 ---
 
@@ -377,7 +399,8 @@ bazel build //src/checkout/... //src/product-catalog/... //src/payment:payment -
 bazel test  //src/checkout/... //src/product-catalog/... --config=ci
 bazel test  //src/checkout/money:money_test --config=unit
 bazel test  //... --config=unit   # all tests tagged `unit` (see docs/bazel/test-tags.md)
-bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 OCI pilot
+bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 (checkout)
+bazel build //src/payment:payment_image //src/payment:payment_load --config=ci       # BZ-121 (payment)
 ```
 
 **When M3 services land, extend with:**

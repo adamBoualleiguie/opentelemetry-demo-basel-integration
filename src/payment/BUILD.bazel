@@ -3,10 +3,21 @@
 
 """Payment service (Node). M2: Bazel `js_binary` + npm deps from pnpm lockfile."""
 
-load("@aspect_rules_js//js:defs.bzl", "js_binary")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_image_layer")
 load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 
 package(default_visibility = ["//visibility:public"])
+
+# linux/amd64 transition for js_image_layer (matches default oci_image base platform).
+platform(
+    name = "linux_amd64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    visibility = ["//visibility:private"],
+)
 
 exports_files([
     "package.json",
@@ -22,4 +33,64 @@ js_binary(
         ":node_modules",
     ],
     entry_point = "index.js",
+)
+
+# BZ-121: OCI via js_image_layer (runfiles layout) + rules_oci. Base matches Dockerfile runtime:
+# gcr.io/distroless/nodejs22-debian12:nonroot (digest-pinned in MODULE.bazel).
+# Omit the js_image_layer "node" tarball: the base image supplies /nodejs/bin/node (matches Dockerfile).
+# Run with the same argv shape as the Dockerfile CMD (index.js also requires opentelemetry.js).
+js_image_layer(
+    name = "payment_js_layers",
+    binary = ":payment",
+    platform = ":linux_amd64",
+    root = "/usr/src/app",
+)
+
+filegroup(
+    name = "payment_layer_pkg_3p",
+    srcs = [":payment_js_layers"],
+    output_group = "package_store_3p",
+)
+
+filegroup(
+    name = "payment_layer_pkg_1p",
+    srcs = [":payment_js_layers"],
+    output_group = "package_store_1p",
+)
+
+filegroup(
+    name = "payment_layer_node_modules",
+    srcs = [":payment_js_layers"],
+    output_group = "node_modules",
+)
+
+filegroup(
+    name = "payment_layer_app",
+    srcs = [":payment_js_layers"],
+    output_group = "app",
+)
+
+oci_image(
+    name = "payment_image",
+    base = "@distroless_nodejs22_debian12_nonroot_linux_amd64//:distroless_nodejs22_debian12_nonroot_linux_amd64",
+    cmd = [
+        "--require=./opentelemetry.js",
+        "index.js",
+    ],
+    entrypoint = ["/nodejs/bin/node"],
+    exposed_ports = ["50051/tcp"],
+    tars = [
+        ":payment_layer_pkg_3p",
+        ":payment_layer_pkg_1p",
+        ":payment_layer_node_modules",
+        ":payment_layer_app",
+    ],
+    visibility = ["//visibility:public"],
+    workdir = "/usr/src/app/src/payment/payment.runfiles/_main/src/payment",
+)
+
+oci_load(
+    name = "payment_load",
+    image = ":payment_image",
+    repo_tags = ["otel/demo-payment:bazel"],
 )

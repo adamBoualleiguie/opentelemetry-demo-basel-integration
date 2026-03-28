@@ -16,7 +16,7 @@ This document records **what was implemented** for milestone **M2** from `5-baze
 | **Protos + Node** | `//pb:demo_proto_js` (`js_library` wrapping `demo.proto`) so cross-package data satisfies rules_js **copy_to_bin** rules; `index.js` resolves the proto path for **Docker** (sibling file) vs **Bazel runfiles** (`_main/pb/demo.proto`). |
 | **OpenTelemetry in payment** | `require('./opentelemetry.js')` at the top of `index.js` so the SDK loads before other requires when **not** using Docker’s `node --require` (module cache avoids double-initialization if both run). |
 | **Toolchains** | **rules_go 0.59.0** + **gazelle 0.48.0** for **Go 1.25**; **go_sdk.download(1.25.0)**; **aspect_rules_js 2.3.0** + **rules_nodejs** with **Node 22.14.0** (aligned with the payment **Dockerfile** Node 22 line). |
-| **CI (`bazel_smoke`)** | Builds **Go services** and **`//src/payment:payment`**, runs **Go tests**, in addition to M0/M1 targets (still **`continue-on-error: true`**). |
+| **CI (`bazel_smoke`)** | Builds **Go services** and **`//src/payment/...`** (binary + OCI targets), runs **Go tests**, in addition to M0/M1 targets (still **`continue-on-error: true`**). |
 | **Test tags (BZ-130)** | Go **`go_test`** targets use **`tags = ["unit"]`**; run **`bazel test ... --config=unit`** per **`.bazelrc`**. Documented in **`docs/bazel/test-tags.md`** (**M3** epic N, applied across milestones). |
 
 ---
@@ -89,7 +89,7 @@ PAYMENT_PORT=8080 bazel run //src/payment:payment
 
 # M1 + M2 smoke (subset of CI)
 bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos \
-  //src/checkout/... //src/product-catalog/... //src/payment:payment --config=ci
+  //src/checkout/... //src/product-catalog/... //src/payment/... --config=ci
 ```
 
 ---

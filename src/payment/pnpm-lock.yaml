@@ -35,6 +35,9 @@ dependencies:
   '@opentelemetry/instrumentation-runtime-node':
     specifier: 0.26.0
     version: 0.26.0(@opentelemetry/api@1.9.0)
+  '@opentelemetry/otlp-exporter-base':
+    specifier: 0.213.0
+    version: 0.213.0(@opentelemetry/api@1.9.0)
   '@opentelemetry/resource-detector-alibaba-cloud':
     specifier: 0.33.3
     version: 0.33.3(@opentelemetry/api@1.9.0)

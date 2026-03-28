@@ -115,7 +115,7 @@ jobs:
         run: |
           bazelisk build //:smoke --config=ci
           bazelisk build //pb:demo_proto //pb:go_grpc_protos --config=ci
-          bazelisk build //src/checkout/... //src/product-catalog/... //src/payment:payment --config=ci
+          bazelisk build //src/checkout/... //src/product-catalog/... //src/payment/... --config=ci
           bazelisk test //src/checkout/... //src/product-catalog/... --config=ci
       - name: Bazel lint wrappers (Make-backed)
         run: bazelisk run //:lint

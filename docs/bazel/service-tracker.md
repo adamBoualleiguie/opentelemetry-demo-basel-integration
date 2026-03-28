@@ -21,7 +21,7 @@ Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = 
 | `src/llm` | Python | Dockerfile | No | — | NS |
 | `src/load-generator` | Python | Dockerfile | No | — | NS |
 | `src/opensearch` | infra | Dockerfile | No | — | NS |
-| `src/payment` | Node | Dockerfile / npm | Yes | — | B |
+| `src/payment` | Node | Dockerfile / npm | Yes | — | B/I |
 | `src/product-catalog` | Go | Dockerfile / `go` | Yes | `//pb:demo_go_proto_product_catalog` | B/T |
 | `src/product-reviews` | Python | Dockerfile | Yes | — | NS |
 | `src/quote` | PHP | Dockerfile | Yes | — | NS |
@@ -31,10 +31,10 @@ Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = 
 
 **Shared:** `pb/demo.proto` → `//pb:demo_proto` (all RPC services in one file).
 
-**CI:** `.github/workflows/checks.yml` job **`bazel_smoke`** (`continue-on-error: true`) builds **`//src/checkout/...`**, **`//src/product-catalog/...`**, **`//src/payment:payment`** and runs Go tests for the two Go services.
+**CI:** `.github/workflows/checks.yml` job **`bazel_smoke`** (`continue-on-error: true`) builds **`//src/checkout/...`**, **`//src/product-catalog/...`**, **`//src/payment/...`** (includes **`payment_image`** / **`payment_load`**) and runs Go tests for the two Go services.
 
 Infra/config under `src/` (grafana, jaeger, prometheus, postgresql, otel-collector, flagd) are not listed above; track separately when image rules are introduced.
 
-**M3 (majority services + images):** see **`docs/bazel/milestones/m3-completion.md`** per-service conversion steps and **`docs/bazel/oci-policy.md`** (BZ-120). **BZ-121** pilot: **`//src/checkout:checkout_image`**, **`//src/checkout:checkout_load`** (included under **`bazel build //src/checkout/...`**).
+**M3 (majority services + images):** see **`docs/bazel/milestones/m3-completion.md`** and **`docs/bazel/oci-policy.md`** (BZ-120). **BZ-121:** **`//src/checkout:checkout_{image,load}`**, **`//src/payment:payment_{image,load}`** (both picked up by **`bazel build //src/checkout/...`** and **`//src/payment/...`** respectively).
 
 **BZ-130 (test tags):** **`docs/bazel/test-tags.md`**; **`bazel test //... --config=unit`** runs only tests tagged **`unit`** (currently **`//src/checkout/money:money_test`**).

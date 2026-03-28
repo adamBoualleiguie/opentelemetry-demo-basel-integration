@@ -64,11 +64,25 @@ oci.pull(
         "linux/arm64",
     ],
 )
+# BZ-121 payment: same runtime as src/payment/Dockerfile final stage (gcr.io/distroless/nodejs22-debian12:nonroot).
+# Index digest (linux/amd64 + linux/arm64); Bazel fetcher works reliably vs Docker Hub anonymous pulls.
+oci.pull(
+    name = "distroless_nodejs22_debian12_nonroot",
+    digest = "sha256:13593b7570658e8477de39e2f4a1dd25db2f836d68a0ba771251572d23bb4f8e",
+    image = "gcr.io/distroless/nodejs22-debian12",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
 use_repo(
     oci,
     "distroless_static_debian12_nonroot",
     "distroless_static_debian12_nonroot_linux_amd64",
     "distroless_static_debian12_nonroot_linux_arm64",
+    "distroless_nodejs22_debian12_nonroot",
+    "distroless_nodejs22_debian12_nonroot_linux_amd64",
+    "distroless_nodejs22_debian12_nonroot_linux_arm64",
     # Created by `rules_oci`'s own module `oci.toolchains()` tag (merged extension); required for visibility from root.
     "oci_crane_toolchains",
     "oci_regctl_toolchains",
