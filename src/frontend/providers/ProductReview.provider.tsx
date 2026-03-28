@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import { createContext, useContext, useEffect, useMemo } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import ApiGateway from '../gateways/Api.gateway';
 import { ProductReview } from '../protos/demo';
@@ -47,20 +47,18 @@ const ProductReviewProvider = ({ children, productId }: IProps) => {
     });
 
     // Use a sentinel: null while loading, [] if loaded but empty, array when loaded with data.
-    const productReviews: ProductReview[] | null = isSuccess
-        ? Array.isArray(data)
-            ? data
-            : []
-        : null;
+    const productReviews = useMemo((): ProductReview[] | null => {
+        if (!isSuccess) return null;
+        return Array.isArray(data) ? data : [];
+    }, [isSuccess, data]);
 
     const loading = isLoading || isFetching;
 
     // Narrow react-query's `unknown` error to `Error | null`.
-    const currentError: Error | null = isError
-        ? error instanceof Error
-            ? error
-            : new Error('Unknown error')
-        : null;
+    const currentError = useMemo((): Error | null => {
+        if (!isError) return null;
+        return error instanceof Error ? error : new Error('Unknown error');
+    }, [isError, error]);
 
     const { data: averageScore = '' } = useQuery({
         queryKey: ['productReviewAvgScore', productId],

@@ -45,6 +45,8 @@ const ProductAIAssistantProvider = ({ children, productId }: ProductAIAssistantP
     // Clear AI state when switching products.
     useEffect(() => {
         mutation.reset();
+        // Only reset when route product changes; mutation identity is unstable across renders.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [productId]);
 
     const value = useMemo(
@@ -60,7 +62,7 @@ const ProductAIAssistantProvider = ({ children, productId }: ProductAIAssistantP
             },
             reset: () => mutation.reset(),
         }),
-        [mutation.data, mutation.isPending, mutation.error]
+        [mutation]
     );
 
     return <Context.Provider value={value}>{children}</Context.Provider>;

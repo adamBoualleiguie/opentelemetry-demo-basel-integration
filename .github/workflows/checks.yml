@@ -111,12 +111,13 @@ jobs:
         uses: bazel-contrib/setup-bazelisk@v3
       - name: Bazel version
         run: bazelisk version
-      - name: Bazel M0 smoke + M1 proto + M2 Go + payment
+      - name: Bazel M0 smoke + M1 proto + M2 Go + payment + frontend OCI
         run: |
           bazelisk build //:smoke --config=ci
           bazelisk build //pb:demo_proto //pb:go_grpc_protos --config=ci
           bazelisk build //src/checkout/... //src/product-catalog/... //src/payment/... --config=ci
-          bazelisk test //src/checkout/... //src/product-catalog/... --config=ci
+          bazelisk build //src/frontend:frontend_image --config=ci
+          bazelisk test //src/checkout/... //src/product-catalog/... //src/frontend:lint --config=ci
       - name: Bazel lint wrappers (Make-backed)
         run: bazelisk run //:lint
 

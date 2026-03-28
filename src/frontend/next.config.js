@@ -5,12 +5,17 @@
 
 const dotEnv = require('dotenv');
 const dotenvExpand = require('dotenv-expand');
-const { resolve } = require('path');
+const path = require('path');
+const { resolve } = path;
 
 const myEnv = dotEnv.config({
   path: resolve(__dirname, '../../.env'),
 });
 dotenvExpand.expand(myEnv);
+
+// Under Bazel, `js_run_binary` sets BAZEL_* env vars. A fixed `turbopack.root` breaks Next 16’s
+// Turbopack project path vs `.next` (panic: distDirRoot navigates out of projectPath).
+const isBazelBuild = Boolean(process.env.BAZEL_COMPILATION_MODE);
 
 const {
   AD_ADDR = '',
@@ -33,14 +38,25 @@ const nextConfig = {
   compiler: {
     styledComponents: true,
   },
-  // Turbopack configuration (Next.js 16 default bundler)
-  // Turbopack automatically handles Node.js polyfills for client bundles
-  turbopack: {
-    // Set root to current directory to avoid confusion with parent lockfile
-    root: __dirname,
-  },
-  // Keep webpack config for backwards compatibility if --webpack flag is used
+  // Turbopack: under Bazel use `{}` only — `root: __dirname` panics (distDirRoot vs projectPath).
+  // Outside Bazel, pin root so the monorepo lockfile does not confuse resolution.
+  turbopack: isBazelBuild
+    ? {}
+    : {
+        root: __dirname,
+      },
+  // Webpack: used for `next build --webpack` under Bazel (Turbopack + pnpm symlinks panic / mis-resolve).
   webpack: (config, { isServer }) => {
+    if (isBazelBuild) {
+      // Single React resolution across workers (rules_js symlinks can load two copies → "extends undefined").
+      const reactRoot = path.dirname(require.resolve('react/package.json', { paths: [__dirname] }));
+      const reactDomRoot = path.dirname(require.resolve('react-dom/package.json', { paths: [__dirname] }));
+      config.resolve.alias = {
+        ...(config.resolve.alias || {}),
+        react: reactRoot,
+        'react-dom': reactDomRoot,
+      };
+    }
     if (!isServer) {
       config.resolve.fallback.http2 = false;
       config.resolve.fallback.tls = false;

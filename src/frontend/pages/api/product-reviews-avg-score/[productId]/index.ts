@@ -3,7 +3,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import InstrumentationMiddleware from '../../../../utils/telemetry/InstrumentationMiddleware';
-import { Empty, ProductReview } from '../../../../protos/demo';
+import { Empty } from '../../../../protos/demo';
 import ProductReviewService from '../../../../services/ProductReview.service';
 
 type TResponse = string | Empty;

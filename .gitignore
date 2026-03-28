@@ -29,6 +29,7 @@ build/
 node_modules/
 # pnpm project store under payment (e.g. local/Docker `pnpm install` in src/payment)
 src/payment/.pnpm-store/
+src/frontend/.pnpm-store/
 coverage
 .next/
 out/

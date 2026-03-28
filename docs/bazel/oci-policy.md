@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) — **`oci_image`** + **`oci_load`** each | Proves Go and Node paths: digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) — **`oci_image`** + **`oci_load`** each | Proves Go, Node service, and Next standalone paths: digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -29,7 +29,16 @@ This note records the **chosen direction** for building container images with Ba
 | **Layers** | **`js_image_layer`** runfiles split; **`oci_image`** stacks **package_store** + **node_modules** + **app** (no duplicate **`node`** layer — uses distroless **`/nodejs/bin/node`**). |
 | **Runtime** | Same shape as **`src/payment/Dockerfile`**: **`/nodejs/bin/node`**, **`--require=./opentelemetry.js`**, **`index.js`**, **50051/tcp**. |
 
-Narrative, **`@opentelemetry/otlp-exporter-base`** hoisting note, and troubleshooting: **`docs/bazel/milestones/m3-completion.md`** §9.
+### `frontend` (Next.js)
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | `//src/frontend:frontend_image`, `//src/frontend:frontend_load` → **`otel/demo-frontend:bazel`**. |
+| **Base** | `gcr.io/distroless/nodejs24-debian13` (nonroot; digest-pinned in **`MODULE.bazel`**, aligned with **`src/frontend/Dockerfile`**). |
+| **Layer** | Single **`tar`** from **`copy_to_directory`** over **`js_run_binary`** **`next_build`** outputs (standalone layout + **`public/`** + **`Instrumentation.js`**). |
+| **Runtime** | **`WORKDIR`** **`/app`**, **`/nodejs/bin/node`**, **`--require=./Instrumentation.js`**, **`server.js`**, **8080/tcp**. |
+
+**`next build`** uses **`tags = ["manual", "no-sandbox"]`** (standalone symlink tracing). Narrative, Connect/protobuf lock notes, and troubleshooting: **`docs/bazel/milestones/m3-completion.md`** §8–§9.
 
 ## Out of scope at BZ-120
 

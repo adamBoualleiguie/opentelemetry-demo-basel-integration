@@ -1,0 +1,162 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+"""Next.js frontend: npm (npm_frontend), ESLint, `next build` + OCI image (BZ-051 + BZ-121-style)."""
+
+load("@aspect_bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@aspect_bazel_lib//lib:tar.bzl", "mtree_mutate", "mtree_spec", "tar")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary", "js_test")
+load("@npm_frontend//:defs.bzl", "npm_link_all_packages")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+])
+
+npm_link_all_packages(name = "node_modules")
+
+# Inputs for `next build` (exclude Cypress e2e and lockfiles).
+_FRONTEND_NEXT_SRCS = glob(
+    include = [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.mjs",
+        "**/*.cjs",
+        "**/*.json",
+        "**/*.css",
+        "public/**",
+    ],
+    exclude = [
+        "node_modules/**",
+        ".next/**",
+        "cypress/**",
+        "pnpm-lock.yaml",
+        "package-lock.json",
+    ],
+)
+
+# --- Lint (BZ-051) ---
+_FRONTEND_LINT_DATA = glob(
+    include = [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.json",
+        "**/*.css",
+        "**/*.svg",
+        "eslint.config.mjs",
+        ".prettierignore",
+        ".prettierrc",
+    ],
+    exclude = [
+        "node_modules/**",
+        ".next/**",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+    ],
+)
+
+js_test(
+    name = "lint",
+    size = "large",
+    args = [
+        ".",
+        "--max-warnings",
+        "0",
+        "--ignore-pattern",
+        "cypress/**",
+    ],
+    chdir = package_name(),
+    data = _FRONTEND_LINT_DATA + [":node_modules"],
+    entry_point = "eslint_cli.cjs",
+    tags = ["lint"],
+)
+
+# --- Production bundle: `next build` → `.next` (standalone + static) ---
+js_binary(
+    name = "next_build_tool",
+    data = [":node_modules"] + _FRONTEND_NEXT_SRCS,
+    entry_point = "next_build_cli.cjs",
+)
+
+js_run_binary(
+    name = "next_build",
+    tool = ":next_build_tool",
+    srcs = [":node_modules"] + _FRONTEND_NEXT_SRCS,
+    chdir = package_name(),
+    out_dirs = [".next"],
+    env = {
+        "NEXT_TELEMETRY_DISABLED": "1",
+        # Do not add another --require via NODE_OPTIONS (rules_js register merge breaks preload).
+        "NODE_OPTIONS": "--max-old-space-size=8192",
+    },
+    mnemonic = "NextBuild",
+    progress_message = "Next.js production build //src/frontend",
+    resource_set = "mem_8g",
+    # Next standalone output copies traced node_modules symlinks; under the sandbox those targets are outside the action and Bazel rejects dangling links.
+    tags = ["manual", "no-sandbox"],
+)
+
+# Mirror Dockerfile layout: standalone at app root, static under .next/static, public/, Instrumentation.js.
+copy_to_directory(
+    name = "frontend_image_root",
+    srcs = [":next_build"] + glob(["public/**"]) + ["utils/telemetry/Instrumentation.js"],
+    include_srcs_patterns = [
+        "standalone/**",
+        "static/**",
+        "public/**",
+        "**/Instrumentation.js",
+    ],
+    replace_prefixes = {
+        "standalone/": "",
+        "static/": ".next/static/",
+        "utils/telemetry/Instrumentation.js": "Instrumentation.js",
+    },
+    tags = ["manual"],
+)
+
+mtree_spec(
+    name = "frontend_image_mtree_raw",
+    srcs = [":frontend_image_root"],
+    out = "frontend_image_mtree_raw.spec",
+)
+
+mtree_mutate(
+    name = "frontend_image_mtree",
+    mtree = ":frontend_image_mtree_raw",
+    package_dir = "app",
+    srcs = [":frontend_image_root"],
+)
+
+tar(
+    name = "frontend_image_layer",
+    srcs = [":frontend_image_root"],
+    mtree = ":frontend_image_mtree",
+    out = "frontend_image_layer.tar",
+)
+
+oci_image(
+    name = "frontend_image",
+    base = "@distroless_nodejs24_debian13_nonroot_linux_amd64//:distroless_nodejs24_debian13_nonroot_linux_amd64",
+    cmd = [
+        "--require=./Instrumentation.js",
+        "server.js",
+    ],
+    entrypoint = ["/nodejs/bin/node"],
+    exposed_ports = ["8080/tcp"],
+    tars = [":frontend_image_layer"],
+    workdir = "/app",
+)
+
+oci_load(
+    name = "frontend_load",
+    image = ":frontend_image",
+    repo_tags = ["otel/demo-frontend:bazel"],
+)

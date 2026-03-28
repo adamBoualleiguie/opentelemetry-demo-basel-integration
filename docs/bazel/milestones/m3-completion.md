@@ -60,9 +60,9 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | Java `ad`, Kotlin `fraud-detection` | M3 (BZ-070/071) | **Not started** — Gradle remains source of truth. |
 | .NET `accounting` | M3 (BZ-080) | **Not started**. |
 | Rust `shipping` | M3 (BZ-090) | **Not started**. |
-| Next `frontend` | M3 (BZ-051) | **Not started**. |
+| Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`** and **`payment`**: image + `oci_load` targets (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, and **`frontend`**: **`oci_image`** + **`oci_load`** each (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). |
 | Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
@@ -270,18 +270,56 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 
 | Field | Detail |
 |-------|--------|
-| **Stack** | **Next.js** / TypeScript, **npm**, large `node_modules`. |
-| **Build today** | Docker multi-stage `npm run build` + production server. |
-| **Proto** | **BZ-033** (deferred in M1) — TS stubs; today may use checked-in `protos/` + npm script. |
+| **Stack** | **Next.js 16** / TypeScript, **pnpm lock** beside the app (same pattern as **`src/payment`**). |
+| **Build today** | Docker multi-stage **`npm run build`** + production **`server.js`**; local **`pnpm` / `npm`** workflows unchanged. |
+| **Proto** | **BZ-033** (deferred in M1): TS stubs live under **`src/frontend/protos/`** (generated / checked-in). Bazel lint **ignores** **`protos/**`** so we do not edit generated files; long term, align with **`docs/bazel/proto-policy.md`** if codegen moves under **`//pb`**. |
 
-**Conversion steps:**
+**What we implemented (BZ-051 + BZ-121-style frontend image)**
 
-1. Extend **`aspect_rules_js`** (or add **pnpm workspace**) to include `src/frontend`: new **`pnpm-lock.yaml`** (or monorepo root lock) and **`npm_translate_lock`**.  
-2. **`next.js` under Bazel** is non-trivial: common patterns include **`js_run_binary`** for `next build` with declared **`outs`**, or **external Next + Bazel lint-only** first. Backlog asks to **document caveats** (output dirs, env, `NEXT_PUBLIC_*`).  
-3. **`js_test` or `jest_test`** for unit tests; **`tags = ["e2e", "manual"]`** for Cypress (**BZ-131**, M4).  
-4. **`BUILD.bazel`**: `js_binary` or custom rule for production server matching **Dockerfile** **CMD**.
+1. **`MODULE.bazel`** — second **`npm.npm_translate_lock`** instance **`name = "npm_frontend"`** with **`pnpm_lock`** / **`data`** pointing at **`//src/frontend:package.json`** and **`//src/frontend:pnpm-lock.yaml`**, then **`use_repo(npm, "npm", "npm_frontend")`**. This keeps the **huge** Next dependency graph **separate** from **`@npm`** (payment) and avoids merging two apps into one pnpm workspace. **`public_hoist_packages`** hoists **`next`**, **`react`**, **`react-dom`**, **`styled-components`**, and selected **`@openfeature/*`** packages under **`src/frontend`** so Next’s workers tend to resolve a single copy of those frameworks.  
+2. **`lifecycle_hooks_exclude = ["cypress"]`** on **`npm_frontend`** so Bazel never runs Cypress’s postinstall (large binary download). **E2E** remains **BZ-131** / Makefile, not CI here.  
+3. **`src/frontend/pnpm-lock.yaml`** — **pnpm v8** (**`lockfileVersion: '6.0'`**) for **`npm_translate_lock`**. **`package.json`** declares **`pnpm.overrides`** so **`@connectrpc/connect`** and **`@connectrpc/connect-web`** are intended to use **`@bufbuild/protobuf@1.10.1`** while the app keeps **`@bufbuild/protobuf@^2.11.0`** for **ts-proto** / **`@bufbuild/protobuf/wire`**. The lockfile’s **`/@connectrpc/connect@1.7.0(...)`** stanza is aligned to **`@bufbuild/protobuf@1.10.1`** (pnpm’s resolver can still emit a **`2.11.0`** flavor key without overrides; refresh the lock with **`pnpm install`** when changing Connect / protobuf).  
+4. **`src/frontend/BUILD.bazel`** — **`exports_files`** for manifests + locks; **`npm_link_all_packages`**; **`js_test`** **`//src/frontend:lint`**; **`js_binary`** **`next_build_tool`** + **`js_run_binary`** **`next_build`** (outputs **`.next`**); **`copy_to_directory`** / **`tar`** / **`oci_image`** **`frontend_image`** + **`oci_load`** **`frontend_load`** (**`otel/demo-frontend:bazel`**). **`next_build`** is tagged **`manual`** and **`no-sandbox`** (see caveats below).  
+5. **`src/frontend/next_build_cli.cjs`** — runs **`next build --webpack`** when **`BAZEL_COMPILATION_MODE`** is set (Turbopack + rules_js symlinks is unstable in the sandbox).  
+6. **`src/frontend/bazel_next_worker_shim.cjs`** — patches **`os.cpus()`** to return a single CPU so Next’s “collect page data” pool does not multiply rules_js symlink graphs across workers.  
+7. **`src/frontend/eslint_cli.cjs`** — same **`argv`** pattern as other **`rules_js`** CLIs; resolves ESLint 9’s **`bin/eslint.js`** via **`eslint/package.json`**.  
+8. **ESLint config** — **`eslint.config.mjs`** (**`eslint-config-next/core-web-vitals`**); legacy **`.eslintrc`** removed (flat config only).  
+9. **Rule tuning / source fixes** — as before (hooks purity off, **`protos/**`** ignored, small demo hygiene fixes).  
+10. **`MODULE.bazel`** — **`oci.pull`** for **`gcr.io/distroless/nodejs24-debian13:nonroot`** (digest-pinned), matching **`src/frontend/Dockerfile`**, for **`frontend_image`** **`base`**.
 
-**Status in this repository:** **Not started**.
+**Why not `next lint` inside `js_test`**
+
+Next 16’s **`next`** CLI registers **`dev`** as the default command. **`rules_js`** invokes the entry script with extra trailing arguments; in practice **`lint`** was parsed as the **dev server directory**, not the **`lint`** subcommand. Calling **`eslint`** directly matches what **`next lint`** does under the hood and stays deterministic in the sandbox.
+
+**Next.js + Bazel caveats (`next build` + OCI)**
+
+| Topic | Caveat |
+|-------|--------|
+| **`NEXT_PUBLIC_*`** | Inlined at **build** time; Bazel must pass stable **`env`** on **`js_run_binary`** if you need parity with Docker for those keys. |
+| **`.env`** | Next loads dotenv from the repo (**`../../.env`** in **`next.config.js`**); hermetic CI may still see empty values unless you declare inputs / env. |
+| **`next.config.js`** | Under Bazel, **`webpack`** is used for production build (**`--webpack`**); **`turbopack`** is `{}` when **`BAZEL_COMPILATION_MODE`** is set. **React** / **react-dom** **`resolve.alias`** pins a single copy for the bundle. |
+| **Outputs** | **`js_run_binary`** declares **`out_dirs = [".next"]`**. **Standalone** traces **`node_modules`** symlinks from rules_js. |
+| **`no-sandbox`** | **`//src/frontend:next_build`** uses tag **`no-sandbox`**: under the default sandbox, Bazel rejects **dangling symlinks** inside **`.next/standalone/node_modules`** (links point outside the action). Disabling the sandbox matches how **Docker** sees the same tree. |
+| **`NODE_OPTIONS`** | Do not append a second **`--require=...`** via **`env`** on **`js_run_binary`**: **`rules_js`** already preloads **`register.cjs`**, and a merged **`NODE_OPTIONS`** breaks Node’s preload parser. The **worker shim** loads from **`next_build_cli.cjs`** instead. |
+| **Connect / protobuf** | **`@openfeature/flagd-web-provider`** pulls **`@connectrpc/connect@1`**, which must resolve **`@bufbuild/protobuf` v1** for its CJS **`Message`** types while the app uses **protobuf v2** for gRPC codegen — see **`pnpm.overrides`** + lockfile **`/@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.1)`** stanza. |
+| **Cypress** | Excluded from **`npm_frontend`** lifecycle hooks; image **`frontend_image_root`** does not assume a full local **`pnpm install`**. |
+
+**Still deferred**
+
+- **Unit / Jest** as **`js_test`** (only **ESLint** is gated today).  
+- **BZ-122** mass rollout / **`component-build-images.yml`** parity (this fork proves **Bazel** path only).
+
+**Verification**
+
+```bash
+bazel test //src/frontend:lint --config=ci
+bazel build //src/frontend:next_build //src/frontend:frontend_image //src/frontend:frontend_load --config=ci
+# optional:
+# bazel run //src/frontend:frontend_load
+# docker image ls | grep otel/demo-frontend
+```
+
+**Status in this repository:** **Implemented** (lint + **`next build`** + **`frontend_image`** / **`frontend_load`** + caveats above).
 
 ---
 
@@ -289,7 +327,7 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and scopes **BZ-121** to proving OCI on **checkout** (Go) and **payment** (Node).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** pilots on **checkout** (Go), **payment** (Node / **js_image_layer**), and **frontend** (Next standalone + **nodejs24** distroless).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -348,6 +386,22 @@ docker run --rm -e PAYMENT_PORT=50051 otel/demo-payment:bazel
 
 **Next (BZ-122 / M4):** replicate for other services, align **`component-build-images.yml`**, registry push (**BZ-123**).
 
+### 9.4 BZ-121 — Extension: **`frontend`** (Next.js)
+
+**What we added**
+
+1. **`MODULE.bazel`** — **`oci.pull`** for **`gcr.io/distroless/nodejs24-debian13:nonroot`** (multi-arch index digest pinned in **`MODULE.bazel`**), aligned with **`src/frontend/Dockerfile`**.  
+2. **`src/frontend/BUILD.bazel`** — **`js_run_binary`** **`next_build`** produces **`.next`** (standalone + static). **`copy_to_directory`** **`frontend_image_root`** reshapes outputs to match the Docker layout (**`server.js`**, **`.next/static`**, **`public/`**, **`Instrumentation.js`**). **`mtree_spec`** / **`tar`** build **`frontend_image_layer`**; **`oci_image`** **`frontend_image`** uses **`entrypoint`** **`["/nodejs/bin/node"]`**, **`cmd`** **`["--require=./Instrumentation.js", "server.js"]`**, **`workdir`** **`/app`**, **`exposed_ports`** **`8080/tcp`**. **`oci_load`** **`frontend_load`** → **`otel/demo-frontend:bazel`**.  
+3. **Build tags** — **`next_build`** and downstream image prep use **`tags = ["manual"]`** so **`bazel test //...`** does not accidentally pull the heavy graph; CI and docs call **`//src/frontend:frontend_image`** explicitly (see **§12**).
+
+**Verification**
+
+```bash
+bazel build //src/frontend:frontend_image //src/frontend:frontend_load --config=ci
+bazel run //src/frontend:frontend_load
+docker image ls | grep otel/demo-frontend
+```
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -397,10 +451,12 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos --config=ci
 bazel build //src/checkout/... //src/product-catalog/... //src/payment:payment --config=ci
 bazel test  //src/checkout/... //src/product-catalog/... --config=ci
+bazel test  //src/frontend:lint --config=ci   # BZ-051 (Next ESLint)
 bazel test  //src/checkout/money:money_test --config=unit
 bazel test  //... --config=unit   # all tests tagged `unit` (see docs/bazel/test-tags.md)
 bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 (checkout)
 bazel build //src/payment:payment_image //src/payment:payment_load --config=ci       # BZ-121 (payment)
+bazel build //src/frontend:frontend_image //src/frontend:frontend_load --config=ci   # BZ-121 (frontend)
 ```
 
 **When M3 services land, extend with:**

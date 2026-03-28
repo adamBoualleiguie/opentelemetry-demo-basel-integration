@@ -44,7 +44,28 @@ npm.npm_translate_lock(
     pnpm_lock = "//src/payment:pnpm-lock.yaml",
     verify_node_modules_ignored = "//:.bazelignore",
 )
-use_repo(npm, "npm")
+# M3 BZ-051: Next.js frontend — separate lockfile/repo from payment (no workspace merge).
+# Exclude cypress postinstall so Bazel does not download the Cypress binary (e2e is BZ-131 / Makefile).
+npm.npm_translate_lock(
+    name = "npm_frontend",
+    data = [
+        "//src/frontend:package.json",
+        "//src/frontend:pnpm-lock.yaml",
+    ],
+    lifecycle_hooks_exclude = ["cypress"],
+    # Hoist runtime frameworks so Next’s parallel page-data workers resolve a single React/Next/styled-components.
+    public_hoist_packages = {
+        "@openfeature/react-sdk": ["src/frontend"],
+        "@openfeature/web-sdk": ["src/frontend"],
+        "next": ["src/frontend"],
+        "react": ["src/frontend"],
+        "react-dom": ["src/frontend"],
+        "styled-components": ["src/frontend"],
+    },
+    pnpm_lock = "//src/frontend:pnpm-lock.yaml",
+    verify_node_modules_ignored = "//:.bazelignore",
+)
+use_repo(npm, "npm", "npm_frontend")
 
 # M3 BZ-121: OCI images (rules_oci). Base digest pinned from gcr.io/distroless/static-debian12:nonroot.
 bazel_dep(name = "rules_oci", version = "2.3.0")
@@ -75,6 +96,17 @@ oci.pull(
         "linux/arm64",
     ],
 )
+# Frontend final stage matches src/frontend/Dockerfile (gcr.io/distroless/nodejs24-debian13:nonroot).
+# Index digest from: docker buildx imagetools inspect ...:nonroot
+oci.pull(
+    name = "distroless_nodejs24_debian13_nonroot",
+    digest = "sha256:924918584d0e6793e578fc0e98b8b8026ae4ac2ccf2fea283bc54a7165441ccd",
+    image = "gcr.io/distroless/nodejs24-debian13",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
 use_repo(
     oci,
     "distroless_static_debian12_nonroot",
@@ -83,6 +115,9 @@ use_repo(
     "distroless_nodejs22_debian12_nonroot",
     "distroless_nodejs22_debian12_nonroot_linux_amd64",
     "distroless_nodejs22_debian12_nonroot_linux_arm64",
+    "distroless_nodejs24_debian13_nonroot",
+    "distroless_nodejs24_debian13_nonroot_linux_amd64",
+    "distroless_nodejs24_debian13_nonroot_linux_arm64",
     # Created by `rules_oci`'s own module `oci.toolchains()` tag (merged extension); required for visibility from root.
     "oci_crane_toolchains",
     "oci_regctl_toolchains",

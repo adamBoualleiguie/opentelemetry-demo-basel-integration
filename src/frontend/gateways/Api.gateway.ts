@@ -121,7 +121,6 @@ const ApiGateway = new Proxy(Apis(), {
       return originalFunction;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return function (...args: any[]) {
       const baggage = propagation.getActiveBaggage() || propagation.createBaggage();
       const newBaggage = baggage.setEntry(AttributeNames.SESSION_ID, { value: userId });
