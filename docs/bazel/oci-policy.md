@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet** for **`accounting`** + **`cart`**), and Rust (**`rust_binary`** + **distroless `cc`**): digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** + **C++ `currency`** + **Ruby `email`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet** for **`accounting`** + **`cart`**), Rust (**`rust_binary`** + **distroless `cc`**), C++ (**distroless `cc`**), and Ruby (**official `ruby:3.4.8-slim-bookworm`** + **`rules_pkg`** **`pkg_tar`** layers): digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -89,6 +89,16 @@ This note records the **chosen direction** for building container images with Ba
 | **Layers** | **`aspect_bazel_lib`** **`mtree_spec`** / **`mtree_mutate`** / **`tar`** (same pattern as **`checkout`**) with **`package_dir = "app"`** — binary at **`/app/shipping`**. |
 | **Runtime** | **`ENTRYPOINT`** **`./shipping`**, **`WORKDIR`** **`/app`**, **50050/tcp** (demo **`SHIPPING_PORT`**). Requires **`SHIPPING_PORT`** (and OTLP endpoints if exporting) at **`docker run`**, same as Docker Compose. |
 | **Caveat** | Default **`rules_rust`** Linux binary is **dynamically linked** to **glibc** — use **`distroless/cc`**, not **`distroless/static`**. A **musl** / fully static build could move to **`static`** later. **`oci_image`** **`base`** is **linux/amd64** today (see **`checkout`** platform note). |
+
+### Ruby (`email`)
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | **`//src/email:email_image`**, **`//src/email:email_load`** → **`otel/demo-email:bazel`**. |
+| **Base** | **`docker.io/library/ruby`** **`3.4.8-slim-bookworm`** (multi-arch index digest **`sha256:1af92319c7301866eddd99a7d43750d64afa1f2b96d9a4cb45167d759e865a85`** in **`MODULE.bazel`** as **`ruby_348_slim_bookworm`**). **Glibc** — aligns with **`rules_ruby`** portable MRI and **`@email_bundle`** native extensions. |
+| **Layers** | **`rules_pkg`** **`pkg_tar`**: **`email_bundle_layer`** (output of **`@email_bundle//:email_bundle`** — **`Gemfile`**, **`Gemfile.lock`**, **`vendor/bundle`**, binstubs) + **`email_app_layer`** (**`email_server.rb`**, **`views/`**, etc.) under **`/email_server`**. |
+| **Runtime** | **`ENTRYPOINT`** **`bundle exec ruby email_server.rb`**, **`WORKDIR`** **`/email_server`**, **`6060/tcp`** (demo **`EMAIL_PORT`**). |
+| **Caveat** | **`src/email/Dockerfile`** uses **Alpine** + **`bundle install`**; the Bazel image uses **Debian slim** by design (see **`docs/bazel/milestones/m3-completion.md`** §7.3). **`Gemfile.lock`** **`PLATFORMS`** are **`x86_64-linux`** / **`aarch64-linux`** for Bazel **`bundle install`**; Compose **Dockerfile** still works (**`docker build -f src/email/Dockerfile .`**). |
 
 ## Out of scope at BZ-120
 

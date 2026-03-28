@@ -22,6 +22,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
    - [6.2 `src/cart` (BZ-081)](#62-service-srccart-bz-081)  
 7. [Epic J — Rust (BZ-090)](#7-epic-j--rust-bz-090)  
    - [7.2 `src/currency` — C++ / gRPC (BZ-092)](#72-service-srccurrency--c--grpc-bz-092)  
+   - [7.3 `src/email` — Ruby (BZ-093)](#73-service-srcemail--ruby-bz-093)  
 8. [Epic F — Node: frontend (BZ-051)](#8-epic-f--node-frontend-bz-051)  
 9. [Epic M — OCI images (BZ-120, BZ-121)](#9-epic-m--oci-images-bz-120-bz-121)  
 10. [Epic N — Test taxonomy (BZ-130)](#10-epic-n--test-taxonomy-bz-130)  
@@ -64,10 +65,11 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | .NET `cart` | BZ-081 (build/OCI early) + **BZ-121** | **`//src/cart:cart_publish`**, **`cart_image`** / **`cart_load`** (**`otel/demo-cart:bazel`**). **gRPC Web** + **Valkey**; proto at **`pb/demo.proto`** in the temp tree (**`proto_dest`**). Publish overrides **`PublishSingleFile`** / **`SelfContained`** so the image runs **`dotnet cart.dll`** on **aspnet** (Dockerfile uses **single-file musl** — intentional Bazel divergence, **§6.2**). **`bazel test`** for **`tests/cart.tests.csproj`** not wired yet — run **`dotnet test`** locally (**BZ-081** remainder). |
 | Rust `shipping` | M3 (BZ-090 + **BZ-121** OCI) | **`rules_rust` 0.69** + **`crate_universe`** **`shipping_crates`**; **`rust_library`** / **`rust_binary`** / **`rust_test`** (**`unit`**). **OCI:** **`shipping_image`** / **`shipping_load`** → **`otel/demo-shipping:bazel`** on **`gcr.io/distroless/cc-debian13:nonroot`** (**`distroless_cc_debian13_nonroot`** in **`MODULE.bazel`**); **`mtree_spec`** / **`tar`** layer places **`shipping`** at **`/app/shipping`** (same as **`src/shipping/Dockerfile`**). **Proto:** not in Bazel yet (**`docs/bazel/proto-policy.md`**). Repin: **`CARGO_BAZEL_REPIN=1 bazel sync --only=shipping_crates`**. |
 | C++ `currency` | M3 (**BZ-092** + **BZ-121** OCI) | **`grpc` 1.66.0.bcr.2** + **`opentelemetry-cpp` 1.24.0.bcr.1** + **`googletest`** in **`MODULE.bazel`**; **`single_version_override`** on **`protobuf`**, **`grpc`**, and **`abseil-cpp`** so C++ gRPC + protobuf 29.x stay consistent (avoids Bzlmod pulling protobuf 33 / grpc 1.69, which breaks the gRPC C++ / protobuf **upb** graph). **`//pb:demo_cpp_grpc`** (**`cc_proto_library`** + **`cc_grpc_library`**) for optional reuse; **`//src/currency`** copies **`//pb:demo.proto`** via **`genrule`** (protobuf requires same-package **`.proto`**), then **`cc_grpc_library`** (**`grpc_only`**) + **`cc_proto_library`**. **`currency_includes.bzl`** rule adds **`-I`** for **`bazel-bin/src/currency`** and **`bazel-bin/external/grpc~/src/proto`** so **`#include <demo.grpc.pb.h>`** and **`#include <grpc/health/v1/health.grpc.pb.h>`** resolve (gRPC health stubs from **`@com_github_grpc_grpc//src/proto/grpc/health/v1:health_proto`** — not **`@grpc-proto`**, because **`cc_grpc_library` cannot codegen from an external-repo path referenced only from `//pb`**). **`cc_library` `currency_lib`** uses **`features = ["-pic"]`** so gRPC stub code links as **`.a`** (avoids **`libcurrency_*_cc_grpc.so`** undefined **C core** symbols at link time). **`cc_binary` `currency`**; **`cc_test` `currency_proto_smoke_test`** (**`unit`**) links **`cc_proto`** only. **OCI:** **`currency_image`** / **`currency_load`** → **`otel/demo-currency:bazel`** on **`distroless_cc_debian13_nonroot`** (**`7001/tcp`**, **`cmd = ["7001"]`**, **`entrypoint = ["./currency"]`**). |
+| Ruby `email` | M3 (**BZ-093** + **BZ-121** OCI) | **`rules_ruby` 0.24** — portable MRI **3.4.8** (**`version_file = "//src/email:.ruby-version"`**), **`ruby.bundle_fetch`** **`email_bundle`** from **`Gemfile` / `Gemfile.lock`**. **`rb_library` / `rb_binary` `email`**; **`rb_test` `email_gems_smoke_test`** (**`unit`**). **`Gemfile.lock`** **`PLATFORMS`** limited to **`x86_64-linux`** + **`aarch64-linux`** (glibc) so **`bundle install`** under Bazel resolves **grpc** / native gems for Linux; **`google-protobuf`** uses **`force_ruby_platform: true`**. **OCI:** **`email_image`** / **`email_load`** → **`otel/demo-email:bazel`** on **`docker.io/library/ruby:3.4.8-slim-bookworm`** (**`ruby_348_slim_bookworm`** in **`MODULE.bazel`** — Debian **glibc**, distinct from Compose **Alpine** Dockerfile). |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, and **C++ `currency`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**. |
-| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, and **Ruby `email`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**; **Ruby `email`** uses **official `ruby:3.4.8-slim-bookworm`** (glibc). |
+| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`**, **`//src/currency:currency_proto_smoke_test`**, **`//src/email:email_gems_smoke_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
 
@@ -417,6 +419,44 @@ bazel test //src/currency:currency_proto_smoke_test --config=unit
 
 ---
 
+### 7.3 Service: `src/email` — Ruby (BZ-093)
+
+| Field | Detail |
+|-------|--------|
+| **Stack** | Sinatra + OpenTelemetry Ruby + Bundler; **`.ruby-version`** **3.4.8**. |
+| **Build today** | **`src/email/Dockerfile`**: **Alpine** + **`bundle install`** → **`bundle exec ruby email_server.rb`**. |
+| **Proto** | Service does not compile **`pb/demo.proto`** in-process (no gRPC server in this app). **`google-protobuf`** is a RubyGem dependency of OTLP exporters. |
+
+**Why the Bazel OCI base differs from the Dockerfile**
+
+- **`rules_ruby`** uses **portable MRI** (**glibc** on Linux). Native extensions in **`@email_bundle`** are built for that ABI.
+- The **Compose** image stays **Alpine (musl)**; **`bundle install`** there selects **musl** **grpc** / **protobuf** gems. That path remains valid after lockfile updates (verified with **`docker build -f src/email/Dockerfile .`**).
+- The **Bazel** image uses **`docker.io/library/ruby:3.4.8-slim-bookworm`** (digest **`ruby_348_slim_bookworm`** in **`MODULE.bazel`**) so the same **vendor/bundle** layout from Bazel is compatible at runtime.
+
+**`Gemfile.lock` / Bundler**
+
+- **`PLATFORMS`** are **`x86_64-linux`** and **`aarch64-linux`** only so **`rb_bundle_install`** (inside **`@email_bundle`**) does not require a single **grpc** version that satisfies **musl + darwin + gnu** at once (Bundler’s “all resolution platforms” rule).
+- **`gem "google-protobuf", …, force_ruby_platform: true`** keeps **protobuf** on the generic Ruby platform where helpful; **`grpc`** remains platform-specific per Linux arch (**`-gnu`**).
+
+**What we implemented**
+
+1. **`MODULE.bazel`** — **`bazel_dep(rules_ruby, 0.24.0)`**; **`ruby.toolchain`** (**`portable_ruby = True`**, **`version_file = "//src/email:.ruby-version"`**); **`ruby.bundle_fetch`** **`name = "email_bundle"`**; **`use_repo`** + **`register_toolchains("@ruby_toolchains//:all")`**; **`oci.pull`** **`ruby_348_slim_bookworm`**.  
+2. **`src/email/BUILD.bazel`** — **`rb_library` `email_lib`** (**`email_server.rb`**, **`views/**`**, **`deps = ["@email_bundle"]`**); **`rb_binary` `email`**; **`rb_test` `email_gems_smoke_test`** (**`test/gems_load_test.rb`**, **`tags = ["unit"]`**); **`pkg_tar`** **`email_bundle_layer`** (output of **`@email_bundle//:email_bundle`**) + **`email_app_layer`**; **`oci_image` `email_image`** / **`oci_load` `email_load`** (**`otel/demo-email:bazel`**, **`6060/tcp`**, **`WORKDIR`** **`/email_server`**).  
+3. **`src/email/test/gems_load_test.rb`** — requires **Bundler** + **`sinatra/base`** (not **`sinatra`**, which in classic mode would start a server and hang **`rb_test`**).
+
+**Verification**
+
+```bash
+bazel build //src/email:email //src/email:email_image --config=ci
+bazel test //src/email:email_gems_smoke_test --config=ci
+bazel test //src/email:email_gems_smoke_test --config=unit
+# optional: bazel run //src/email:email_load && docker image ls | grep otel/demo-email
+```
+
+**Status in this repository:** **Implemented** (**B** / **T** / **I**). Dockerfile / **`bundle install`** remain alternate entrypoints.
+
+---
+
 ## 8. Epic F — Node: frontend (BZ-051)
 
 ### 8.1 Service: `src/frontend`
@@ -480,7 +520,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**), and **C++ `currency`** (**`cc_binary`** + **distroless cc** — **§9.10**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**), **C++ `currency`** (**`cc_binary`** + **distroless cc** — **§9.10**), and **Ruby `email`** (**`rules_ruby`** **`bundle_fetch`** + **`ruby:3.4.8-slim-bookworm`** — **§9.11** / **`oci-policy.md`**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -489,7 +529,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 **Module wiring (`MODULE.bazel`):**
 
 - **`bazel_dep`:** `rules_oci` 2.3.0, `aspect_bazel_lib` 2.21.1, `tar.bzl` 0.7.0, **`rules_pkg`** 1.0.1 (Python service **`pkg_tar`** layers).
-- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_cc_debian13_nonroot`** (Rust **shipping**), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
+- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_cc_debian13_nonroot`** (Rust **shipping**), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), **`ruby_348_slim_bookworm`** (Ruby **email**), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
 - **Why there is no `oci.toolchains()` in the root module:** the **`rules_oci` module’s own `MODULE.bazel` already calls `oci.toolchains()`**. Bzlmod merges extension tags; a second `oci.toolchains()` from the root duplicated crane repositories and broke analysis. The root module still **`use_repo`**-exports **`oci_crane_toolchains`** and **`oci_regctl_toolchains`** and **`register_toolchains(...)`** for them so crane/regctl are visible from this repo.
 - **Supporting toolchains:** `aspect_bazel_lib` **`jq`** + **`zstd`**; **`tar.bzl`** **`bsd_tar_toolchains`** — required by **`rules_oci`** / aspect tar rules.
 
@@ -687,6 +727,25 @@ bazel build //src/currency:currency_image //src/currency:currency_load --config=
 - **`bazel_smoke`** builds **`currency_image`** (not **`currency_load`**) like other **`*_image`** targets.  
 - **`currency_includes.bzl`** hard-codes the **`grpc~`** external folder name for **`health`** includes; if resolution changes, update that rule.
 
+### 9.11 BZ-121 — Extension: Ruby **`email`**
+
+**What we added**
+
+1. **`MODULE.bazel`** — **`rules_ruby`** + **`ruby_348_slim_bookworm`** **`oci.pull`** (index digest **`sha256:1af92319c7301866eddd99a7d43750d64afa1f2b96d9a4cb45167d759e865a85`** for **`docker.io/library/ruby:3.4.8-slim-bookworm`**).  
+2. **`src/email/BUILD.bazel`** — two **`pkg_tar`** layers (**`@email_bundle//:email_bundle`** → **`/email_server`**, then app sources); **`oci_image`** **`email_image`** (**`entrypoint`** **`["bundle", "exec", "ruby", "email_server.rb"]`**, **`workdir`** **`/email_server`**, **`6060/tcp`**); **`oci_load`** **`email_load`** → **`otel/demo-email:bazel`**.
+
+**Verification**
+
+```bash
+bazel build //src/email:email_image //src/email:email_load --config=ci
+# optional: bazel run //src/email:email_load && docker run --rm -e EMAIL_PORT=6060 -p 6060:6060 otel/demo-email:bazel
+```
+
+**Caveats**
+
+- **Base image** is **Debian slim** (glibc), not **Alpine** — see **§7.3**.  
+- **`bazel_smoke`** builds **`email_image`** (not **`email_load`**) like other OCI targets.
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -711,7 +770,7 @@ bazel build //src/currency:currency_image //src/currency:currency_load --config=
 | `slow` | Large timeouts. |
 | `manual` | Not run in CI unless explicitly selected. |
 
-**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet).
+**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet). **`//src/email:email_gems_smoke_test`** is tagged **`unit`** (**BZ-093** — Bundler + gem load smoke).
 
 ---
 
@@ -726,6 +785,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 5. **BZ-080 / BZ-121** — .NET **`accounting`** + **`cart`** (**`accounting_*`**, **`cart_publish`** / **`cart_image`**) — **done** in this fork (§6, §6.2, §9.7, §9.9).  
 6. **BZ-090 / BZ-121** — Rust **`shipping`** (build, test, **`shipping_image`**) — **done** in this fork (§7, §9.8).  
 6b. **BZ-092 / BZ-121** — C++ **`currency`** (build, **`cc_test`**, **`currency_image`**) — **done** in this fork (§7.2, §9.10).  
+6c. **BZ-093 / BZ-121** — Ruby **`email`** (**`rules_ruby`**, **`rb_test`**, **`email_image`**) — **done** in this fork (§7.3, §9.11).  
 7. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
 
 ---
@@ -745,11 +805,13 @@ bazel build //src/recommendation:recommendation //src/product-reviews:product_re
 bazel build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image //src/llm:llm_image //src/load-generator:load_generator_image --config=ci
 bazel build //src/shipping:shipping //src/shipping:shipping_image --config=ci   # BZ-090 + BZ-121 OCI
 bazel build //src/currency:currency //src/currency:currency_image --config=ci   # BZ-092 + BZ-121 OCI
+bazel build //src/email:email //src/email:email_image --config=ci   # BZ-093 + BZ-121 OCI
 bazel test  //src/checkout/... //src/product-catalog/... --config=ci
 bazel test  //src/shipping/... --config=ci      # BZ-090 (rust_test)
 bazel test  //src/currency:currency_proto_smoke_test --config=ci   # BZ-092 (cc_test, unit)
+bazel test  //src/email:email_gems_smoke_test --config=ci   # BZ-093 (rb_test, unit)
 bazel test  //src/frontend:lint --config=ci   # BZ-051 (Next ESLint)
-bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test --config=unit
+bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test --config=unit
 bazel test  //... --config=unit   # all tests tagged `unit` (see docs/bazel/test-tags.md)
 bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 (checkout)
 bazel build //src/payment:payment_image //src/payment:payment_load --config=ci       # BZ-121 (payment)

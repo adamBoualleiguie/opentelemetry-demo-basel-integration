@@ -35,7 +35,7 @@ bazel test //src/checkout/... --config=ci --config=unit
 
 1. **Every new `go_test`** should set **`tags = ["unit"]`** unless it is clearly integration/e2e/trace (then use the appropriate tag, or `manual`).  
 2. **Gazelle** does not add tags automatically; update **`BUILD.bazel`** after `gazelle update`.  
-3. **Python / Rust / JS** tests: apply the same convention when those targets are added (**M3+**).
+3. **Python / Rust / JS / Ruby** tests: apply the same convention when those targets are added (**M3+**).
 
 ## Current `unit` tests
 
@@ -44,6 +44,7 @@ bazel test //src/checkout/... --config=ci --config=unit
 | `//src/checkout/money:money_test` | `unit` |
 | `//src/shipping:shipping_test` | `unit` |
 | `//src/currency:currency_proto_smoke_test` | `unit` |
+| `//src/email:email_gems_smoke_test` | `unit` |
 
 ---
 

@@ -1,0 +1,80 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-093: rules_ruby — rb_binary + bundle_fetch (@email_bundle), smoke test, OCI on ruby:3.4.8-slim-bookworm.
+
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_ruby//ruby:defs.bzl", "rb_binary", "rb_library", "rb_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    ".ruby-version",
+    "Gemfile",
+    "Gemfile.lock",
+])
+
+rb_library(
+    name = "email_lib",
+    srcs = ["email_server.rb"],
+    data = glob(["views/**"]),
+    deps = ["@email_bundle"],
+)
+
+rb_binary(
+    name = "email",
+    main = "email_server.rb",
+    deps = [":email_lib"],
+)
+
+# Hermetic: exercises Bundler + key gems (no HTTP server started).
+rb_test(
+    name = "email_gems_smoke_test",
+    srcs = ["test/gems_load_test.rb"],
+    main = "test/gems_load_test.rb",
+    deps = ["@email_bundle"],
+    tags = ["unit"],
+)
+
+# --- BZ-121 extension: OCI — /email_server matches src/email/Dockerfile WORKDIR; base is Debian slim (see MODULE.bazel). ---
+pkg_tar(
+    name = "email_bundle_layer",
+    srcs = ["@email_bundle//:email_bundle"],
+    package_dir = "email_server",
+)
+
+pkg_tar(
+    name = "email_app_layer",
+    srcs = [
+        "email_server.rb",
+        "Gemfile",
+        "Gemfile.lock",
+        ".ruby-version",
+    ] + glob(["views/**"]),
+    package_dir = "email_server",
+)
+
+oci_image(
+    name = "email_image",
+    base = "@ruby_348_slim_bookworm_linux_amd64//:ruby_348_slim_bookworm_linux_amd64",
+    cmd = [],
+    entrypoint = [
+        "bundle",
+        "exec",
+        "ruby",
+        "email_server.rb",
+    ],
+    exposed_ports = ["6060/tcp"],
+    tars = [
+        ":email_bundle_layer",
+        ":email_app_layer",
+    ],
+    workdir = "/email_server",
+)
+
+oci_load(
+    name = "email_load",
+    image = ":email_image",
+    repo_tags = ["otel/demo-email:bazel"],
+)

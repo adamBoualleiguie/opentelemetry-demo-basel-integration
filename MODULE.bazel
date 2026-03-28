@@ -14,10 +14,12 @@ single_version_override(
     module_name = "protobuf",
     version = "29.3",
 )
+
 single_version_override(
     module_name = "grpc",
     version = "1.66.0.bcr.2",
 )
+
 single_version_override(
     module_name = "abseil-cpp",
     version = "20240116.1",
@@ -26,6 +28,7 @@ single_version_override(
 # M1: protobuf + Go gRPC codegen.
 # M3 BZ-034/BZ-070/BZ-071: grpc-java supplies java_grpc_library + aligned Maven (io_grpc_grpc_java).
 bazel_dep(name = "protobuf", version = "29.3")
+
 # Health / reflection protos for Java strict deps (grpc-java uses this repo internally; root needs visibility for BZ-070).
 bazel_dep(name = "grpc-proto", version = "0.0.0-20240627-ec30f58")
 bazel_dep(name = "grpc-java", version = "1.78.0")
@@ -148,6 +151,24 @@ shipping_crate_index.from_cargo(
 )
 use_repo(shipping_crate_index, "shipping_crates")
 
+# M3 BZ-093: Ruby email — rules_ruby portable MRI + bundle_fetch (Gemfile.lock → vendor/bundle in @email_bundle).
+bazel_dep(name = "rules_ruby", version = "0.24.0")
+
+ruby = use_extension("@rules_ruby//ruby:extensions.bzl", "ruby")
+ruby.toolchain(
+    name = "ruby",
+    portable_ruby = True,
+    version_file = "//src/email:.ruby-version",
+)
+ruby.bundle_fetch(
+    name = "email_bundle",
+    gemfile = "//src/email:Gemfile",
+    gemfile_lock = "//src/email:Gemfile.lock",
+)
+use_repo(ruby, "email_bundle", "ruby", "ruby_toolchains")
+
+register_toolchains("@ruby_toolchains//:all")
+
 # M2 (BZ-050): payment service — aspect_rules_js + pnpm lock (from package-lock via `pnpm import`).
 bazel_dep(name = "aspect_rules_js", version = "2.3.0")
 bazel_dep(name = "rules_nodejs", version = "6.7.3")
@@ -259,6 +280,19 @@ oci.pull(
     ],
 )
 
+# BZ-093 email (Ruby): docker.io/library/ruby:3.4.8-slim-bookworm — glibc; matches rules_ruby portable MRI
+# native extensions in @email_bundle (Alpine/musl in src/email/Dockerfile is the Compose path; Bazel image is Debian-slim).
+# Index digest: docker buildx imagetools inspect ruby:3.4.8-slim-bookworm
+oci.pull(
+    name = "ruby_348_slim_bookworm",
+    digest = "sha256:1af92319c7301866eddd99a7d43750d64afa1f2b96d9a4cb45167d759e865a85",
+    image = "docker.io/library/ruby",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
+
 # JVM services (BZ-121): gcr.io/distroless/java{17,21}-debian12:nonroot — index digests (amd64 + arm64).
 oci.pull(
     name = "distroless_java21_debian12_nonroot",
@@ -295,28 +329,31 @@ use_repo(
     "distroless_cc_debian13_nonroot",
     "distroless_cc_debian13_nonroot_linux_amd64",
     "distroless_cc_debian13_nonroot_linux_arm64",
-    "distroless_nodejs22_debian12_nonroot",
-    "distroless_nodejs22_debian12_nonroot_linux_amd64",
-    "distroless_nodejs22_debian12_nonroot_linux_arm64",
-    "distroless_nodejs24_debian13_nonroot",
-    "distroless_nodejs24_debian13_nonroot_linux_amd64",
-    "distroless_nodejs24_debian13_nonroot_linux_arm64",
     "distroless_java17_debian12_nonroot",
     "distroless_java17_debian12_nonroot_linux_amd64",
     "distroless_java17_debian12_nonroot_linux_arm64",
     "distroless_java21_debian12_nonroot",
     "distroless_java21_debian12_nonroot_linux_amd64",
     "distroless_java21_debian12_nonroot_linux_arm64",
-    "dotnet_aspnet_10",
-    "dotnet_aspnet_10_linux_amd64",
-    "dotnet_aspnet_10_linux_arm64",
+    "distroless_nodejs22_debian12_nonroot",
+    "distroless_nodejs22_debian12_nonroot_linux_amd64",
+    "distroless_nodejs22_debian12_nonroot_linux_arm64",
+    "distroless_nodejs24_debian13_nonroot",
+    "distroless_nodejs24_debian13_nonroot_linux_amd64",
+    "distroless_nodejs24_debian13_nonroot_linux_arm64",
     "distroless_static_debian12_nonroot",
     "distroless_static_debian12_nonroot_linux_amd64",
     "distroless_static_debian12_nonroot_linux_arm64",
+    "dotnet_aspnet_10",
+    "dotnet_aspnet_10_linux_amd64",
+    "dotnet_aspnet_10_linux_arm64",
     "python_312_slim_bookworm",
     "python_312_slim_bookworm_linux_amd64",
     "python_312_slim_bookworm_linux_arm64",
-    # Required for register_toolchains below (rules_oci crane/regctl).
+    "ruby_348_slim_bookworm",
+    "ruby_348_slim_bookworm_linux_amd64",
+    "ruby_348_slim_bookworm_linux_arm64",
+    # rules_oci crane/regctl repos (indirect but required for register_toolchains below).
     "oci_crane_toolchains",
     "oci_regctl_toolchains",
 )
