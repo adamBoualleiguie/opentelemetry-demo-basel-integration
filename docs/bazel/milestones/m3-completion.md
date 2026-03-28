@@ -19,6 +19,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 4. [Epic G — Python (BZ-060, BZ-061)](#4-epic-g--python-bz-060-bz-061)  
 5. [Epic H — JVM: Java & Kotlin (BZ-070, BZ-071)](#5-epic-h--jvm-java--kotlin-bz-070-bz-071)  
 6. [Epic I — .NET (BZ-080)](#6-epic-i--net-bz-080)  
+   - [6.2 `src/cart` (BZ-081)](#62-service-srccart-bz-081)  
 7. [Epic J — Rust (BZ-090)](#7-epic-j--rust-bz-090)  
 8. [Epic F — Node: frontend (BZ-051)](#8-epic-f--node-frontend-bz-051)  
 9. [Epic M — OCI images (BZ-120, BZ-121)](#9-epic-m--oci-images-bz-120-bz-121)  
@@ -37,7 +38,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | **H** | **BZ-070** | `ad` — Java | M3 | Prefer `java_binary` / `java_library`; transitional `genrule` + `./gradlew` only if needed. Artifact equivalent to Gradle `installDist` or Docker build stage. Depends on **BZ-034**. |
 | **H** | **BZ-071** | `fraud-detection` — Kotlin / fat JAR | M3 | Shadow JAR or equivalent buildable via Bazel. Depends on **BZ-034**, kotlin rules. |
 | **I** | **BZ-080** | `accounting` — .NET | M3 | `rules_dotnet` or wrapper around `dotnet publish` with declared outputs; suitable for OCI layer. Depends on **BZ-036** or proto policy. |
-| **I** | **BZ-081** | `cart` + tests | **M4** | Listed for context only; not M3. |
+| **I** | **BZ-081** | `cart` + tests | **M4** (tests) / **this fork** (build + OCI) | Backlog: **`dotnet test`** / full CI parity. **This fork:** **`cart_publish`** + **`cart_image`** (**§6.2**, **§9.9**) — same **`dotnet_publish`** rule as **`accounting`**, nested tree + **`pb/demo.proto`**. |
 | **J** | **BZ-090** | `shipping` — Rust | M3 | `rust_library` / `rust_binary`, tests; Cargo.toml integration; proto if applicable. `bazel build` + `bazel test` for shipping. |
 | **F** | **BZ-051** | `frontend` — Next.js | M3 | Build and lint under Bazel; document Next.js + Bazel caveats. |
 | **M** | **BZ-120** | Choose OCI rule stack + base policy | M3 | ADR or doc; one pilot image (**BZ-121**). |
@@ -58,11 +59,12 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | Node `payment` | M2 (BZ-050) | **`js_binary`** (M2) + **BZ-121** **`payment_image`** / **`payment_load`** (see §9.3). |
 | Python ×4 | M3 (BZ-060/061) + **BZ-121** OCI | **Buildable:** `rules_python` + dual **`pip.parse`** hubs; **`//pb:demo_py_grpc`**; **`py_binary`** + **`oci_image`** / **`oci_load`** per service (**§4**, **§9.5**). |
 | Java `ad`, Kotlin `fraud-detection` | M3 (BZ-070/071) + **BZ-034** + **BZ-121** | **Built in Bazel:** `//src/ad:ad`, `//src/fraud-detection:fraud_detection`; protos from **`//pb:demo_java_grpc`**; **`oci_image`** / **`oci_load`** **`ad_oci_*`**, **`fraud_detection_oci_*`** (see **§5**, **§9.6**). Gradle/Docker remain alternate entrypoints. **No `java_test` / `kt_jvm_test`** in-tree yet. |
-| .NET `accounting` | M3 (BZ-080 + BZ-121 OCI) | **`dotnet_publish`** → **`//src/accounting:accounting_publish`**; **`pkg_tar`** + **`oci_image`** **`accounting_image`** / **`oci_load`** **`accounting_load`** (**`otel/demo-accounting:bazel`**) on **`mcr.microsoft.com/dotnet/aspnet:10.0`** (digest-pinned **`dotnet_aspnet_10`** in **`MODULE.bazel`**). Host **.NET 10** SDK; **`.bazelrc`** forwards **`PATH`** / **`DOTNET_ROOT`** into actions. **`requires-network`**. No in-tree **`dotnet test`** projects yet. |
+| .NET `accounting` | M3 (BZ-080 + BZ-121 OCI) | **`dotnet_publish`** → **`//src/accounting:accounting_publish`**; **`pkg_tar`** + **`oci_image`** **`accounting_image`** / **`oci_load`** (**`otel/demo-accounting:bazel`**) on **`dotnet_aspnet_10`**. Host **.NET 10**; **`requires-network`**. |
+| .NET `cart` | BZ-081 (build/OCI early) + **BZ-121** | **`//src/cart:cart_publish`**, **`cart_image`** / **`cart_load`** (**`otel/demo-cart:bazel`**). **gRPC Web** + **Valkey**; proto at **`pb/demo.proto`** in the temp tree (**`proto_dest`**). Publish overrides **`PublishSingleFile`** / **`SelfContained`** so the image runs **`dotnet cart.dll`** on **aspnet** (Dockerfile uses **single-file musl** — intentional Bazel divergence, **§6.2**). **`bazel test`** for **`tests/cart.tests.csproj`** not wired yet — run **`dotnet test`** locally (**BZ-081** remainder). |
 | Rust `shipping` | M3 (BZ-090 + **BZ-121** OCI) | **`rules_rust` 0.69** + **`crate_universe`** **`shipping_crates`**; **`rust_library`** / **`rust_binary`** / **`rust_test`** (**`unit`**). **OCI:** **`shipping_image`** / **`shipping_load`** → **`otel/demo-shipping:bazel`** on **`gcr.io/distroless/cc-debian13:nonroot`** (**`distroless_cc_debian13_nonroot`** in **`MODULE.bazel`**); **`mtree_spec`** / **`tar`** layer places **`shipping`** at **`/app/shipping`** (same as **`src/shipping/Dockerfile`**). **Proto:** not in Bazel yet (**`docs/bazel/proto-policy.md`**). Repin: **`CARGO_BAZEL_REPIN=1 bazel sync --only=shipping_crates`**. |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, and **Rust `shipping`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** uses **distroless cc** (glibc-linked binary); JVM uses **distroless Java 21 / 17** + deploy JAR layers; accounting uses **aspnet 10.0** under **`/app`**. |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, and **Rust `shipping`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** uses **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**. |
 | Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
@@ -283,10 +285,10 @@ docker image ls | grep -E 'otel/demo-ad:bazel|otel/demo-fraud-detection:bazel'
 
 **What we implemented (wrapper / Starlark rule, not `rules_dotnet`)**
 
-1. **`//tools/bazel:dotnet_publish.bzl`** — rule **`dotnet_publish`**: writes a small **manifest** of **`(input path, relative dest)`** lines, **`run_shell`** copies sources into **`$$(mktemp -d)`**, adds **`proto`** at **`src/protos/demo.proto`**, then runs **`dotnet restore`** and **`dotnet publish -c Release -o <output dir> /p:TreatWarningsAsErrors=false /p:UseAppHost=false`**. Declares a **`directory` output** (publish folder: **`Accounting.dll`**, deps, **`instrument.sh`** from OpenTelemetry auto-instrumentation package, etc.). **`use_default_shell_env = True`** so **`dotnet`** is resolved from **`PATH`**. Tag **`requires-network`** on the target so **`dotnet restore`** can reach NuGet.  
+1. **`//tools/bazel:dotnet_publish.bzl`** — rule **`dotnet_publish`**: writes a **manifest** of **`(input path, dest relative to package)`** lines (flat **`accounting`** → basenames only; nested **`cart`** → preserves **`src/...`**, **`Directory.Build.props`**, etc.), copies into **`$$(mktemp -d)`**, adds **`proto`** at **`proto_dest`** (default **`src/protos/demo.proto`**; **`cart`** uses **`pb/demo.proto`**), then **`dotnet restore`** / **`dotnet publish`** with optional **`extra_publish_args`**. Declares a **`directory` output**. **`use_default_shell_env = True`**; **`requires-network`** for NuGet.  
 2. **`src/accounting/BUILD.bazel`** — **`filegroup`** **`accounting_sources`** + **`dotnet_publish`** **`accounting_publish`** (**`proto = "//pb:demo.proto"`**); **`rules_pkg`** **`pkg_tar`** **`accounting_layer`** (**`package_dir = "app"`**) over **`accounting_publish`**; **`oci_image`** **`accounting_image`** (**`base`** = **`@dotnet_aspnet_10_linux_amd64//:dotnet_aspnet_10_linux_amd64`**, **`workdir`** **`/app`**, **`entrypoint`** **`["./instrument.sh", "dotnet", "Accounting.dll"]`**, OTel **`env`**); **`oci_load`** **`accounting_load`** → **`otel/demo-accounting:bazel`**.  
 3. **Hermeticity trade-off:** the rule uses the **host (or CI) .NET SDK** — same class of assumption as many **`genrule`/`run_binary`** migrations. A future **`rules_dotnet`** + pinned SDK could replace this when **`net10`** support and repo policy align.  
-4. **Tests:** no **`*.Tests.csproj`** in-tree — no **`bazel test`** for accounting yet (**BZ-081** / **`cart`** remains M4).
+4. **Tests:** no **`*.Tests.csproj`** for **`accounting`** — no **`bazel test`** there. **`cart`** has **`tests/cart.tests.csproj`** (**xUnit**) but **no `bazel test` target yet** — run **`dotnet test`** under **`src/cart`** (**BZ-081** test automation remains follow-up).
 
 **Prerequisites**
 
@@ -306,6 +308,45 @@ bazel build //src/accounting:accounting_publish //src/accounting:accounting_imag
 ```
 
 **Status in this repository:** **Implemented** — **`accounting_publish`** (CI smoke) plus **BZ-121-style** **`accounting_image`** / **`accounting_load`**. The stock **`src/accounting/Dockerfile`** creates **`/var/log/opentelemetry/dotnet`** and **`chown`** for **`app`**; the Bazel image does **not** add that directory yet — add a small **`pkg_tar`** if you need identical filesystem parity.
+
+### 6.2 Service: src/cart (BZ-081)
+
+| Field | Detail |
+|-------|--------|
+| **Stack** | **.NET 10** **`src/cart.csproj`** (**ASP.NET Core** gRPC, **Valkey**, **OpenTelemetry** NuGet packages, **OpenFeature** / **flagd**). |
+| **Build today** | Docker multi-stage **`linux-musl`** **single-file** **`./cart`** on **`runtime-deps:alpine`** (**`src/cart/src/Dockerfile`**). |
+| **Proto** | **`cart.csproj`** uses **`Protobuf` Include="$(ProtosDir)\**\*.proto"`** with **`ProtosDir`** resolving to repo **`pb/`** (same canonical **`demo.proto`** as **`//pb:demo.proto`**). |
+| **Backlog** | **BZ-081** — add **`bazel test`** (or **`dotnet_test`** rule) for **`tests/cart.tests.csproj`**. |
+
+**Why this is separate from §6.1:** **`cart`** is a **nested** tree (**`src/*.cs`**, **`cart.slnx`**, **`tests/`** excluded from publish **`filegroup`**). The shared **`dotnet_publish`** rule was extended so each source file’s destination under the temp root is **path relative to the Bazel package** (`src/cart/…`), not **`basename` only** (which would collide for multiple **`.cs`** files). **`proto_dest = "pb/demo.proto"`** matches the **`../pb`** layout next to the **`src/`** project directory inside **`src/cart/`**.
+
+**Dockerfile vs Bazel image**
+
+| Topic | Docker (`src/cart/src/Dockerfile`) | Bazel (`cart_image`) |
+|--------|-------------------------------------|----------------------|
+| **Output** | **Self-contained** single native binary **`cart`** | **Framework-dependent** **`cart.dll`** + **`dotnet`** host |
+| **Base** | **`mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine3.22`** | **`mcr.microsoft.com/dotnet/aspnet:10.0`** (**`dotnet_aspnet_10`**, digest-pinned) |
+| **Entrypoint** | **`./cart`** | **`dotnet cart.dll`** |
+| **Rationale** | Upstream chosen musl + single-file | Reuse same **aspnet** OCI story as **`accounting`**; avoid RID / cross-RID complexity in the generic **`dotnet_publish`** action. |
+
+**Publish flags in Bazel:** **`extra_publish_args = "/p:PublishSingleFile=false /p:SelfContained=false"`** so **`dotnet publish`** overrides the **`.csproj`** **`<PublishSingleFile>true`**, **`<SelfContained>true`**, producing an **FDD** layout suitable for **`aspnet`**.
+
+**`src/cart/BUILD.bazel`**
+
+1. **`cart_publish_sources`** — **`glob`** over **`src/**/*.cs`**, **`src/**/*.csproj`**, **`src/**/*.json`**, **`Directory.Build.props`**, **`NuGet.config`**, **`cart.slnx`**; excludes **`src/bin/**`**, **`src/obj/**`**; **does not** include **`tests/`** (test project is not part of the shipping binary graph).  
+2. **`dotnet_publish`** **`cart_publish`** — **`csproj = "src/cart.csproj"`**, **`proto_dest = "pb/demo.proto"`**, **`requires-network`**.  
+3. **`pkg_tar`** **`cart_layer`** + **`oci_image`** **`cart_image`** — **`workdir`** **`/app`**, **`entrypoint`** **`["dotnet", "cart.dll"]`**, **`7070/tcp`** (**.env** **`CART_PORT`**). **`oci_load`** **`cart_load`** → **`otel/demo-cart:bazel`**.  
+4. **Runtime:** container still needs **`VALKEY_ADDR`** (and usual OTel env vars) like Docker Compose.
+
+**Verification**
+
+```bash
+bazel build //src/cart:cart_publish //src/cart:cart_image //src/cart:cart_load --config=ci
+# dotnet test (not in Bazel yet):
+# (from repo root) dotnet test src/cart/tests/cart.tests.csproj
+```
+
+**Status in this repository:** **`cart_publish`** + **`cart_image`** / **`cart_load`** **implemented**; **automated cart tests in Bazel** = **not done** (**BZ-081** remainder).
 
 ---
 
@@ -406,7 +447,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** (**`dotnet publish`** + **aspnet** — **§9.7**), and **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), and **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -574,6 +615,25 @@ docker image ls | grep otel/demo-shipping
 - **`bazel_smoke`** builds **`shipping_image`** (not **`shipping_load`**) like other JVM / Go OCI targets.  
 - **Multi-arch:** **`oci_image` `base`** is **linux/amd64** today; **`oci.pull`** still fetches **arm64** for future native or cross builds.
 
+### 9.9 BZ-121 — Extension: .NET **`cart`**
+
+**What we added**
+
+1. **`//tools/bazel:dotnet_publish.bzl`** — **`proto_dest`** (default **`src/protos/demo.proto`**) and **`extra_publish_args`**; manifest destinations use **paths relative to the Bazel package** so nested trees (**`src/cart/src/...`**) copy correctly (see **§6.2**).
+
+2. **`src/cart/BUILD.bazel`** — **`cart_publish`** (**`proto_dest = "pb/demo.proto"`**, **`extra_publish_args`** disables single-file / self-contained publish), **`pkg_tar`** **`cart_layer`**, **`oci_image`** **`cart_image`** on **`@dotnet_aspnet_10_linux_amd64//:...`**, **`entrypoint`** **`["dotnet", "cart.dll"]`**, **`7070/tcp`**, **`oci_load`** **`cart_load`** → **`otel/demo-cart:bazel`**.
+
+**Verification**
+
+```bash
+bazel build //src/cart:cart_image //src/cart:cart_load --config=ci
+```
+
+**Caveats**
+
+- **Not** a byte-for-byte match to **`src/cart/src/Dockerfile`** (musl single-file vs **FDD** on **aspnet**).  
+- **`bazel_smoke`** builds **`cart_image`**; **`dotnet test`** for **`tests/cart.tests.csproj`** is still **out-of-Bazel** (**BZ-081**).
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -610,7 +670,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 2. **BZ-051** or **BZ-090** — one “hard” language (Next or Rust) to de-risk.  
 3. **BZ-060 / BZ-061** — Python wave starting with **`recommendation`**.  
 4. **BZ-070 / BZ-071** — JVM (shared Maven pin helps both).  
-5. **BZ-080 / BZ-121** — .NET **`accounting`** (**`accounting_publish`** + **`accounting_image`**) — **done** in this fork (§6, §9.7).  
+5. **BZ-080 / BZ-121** — .NET **`accounting`** + **`cart`** (**`accounting_*`**, **`cart_publish`** / **`cart_image`**) — **done** in this fork (§6, §6.2, §9.7, §9.9).  
 6. **BZ-090 / BZ-121** — Rust **`shipping`** (build, test, **`shipping_image`**) — **done** in this fork (§7, §9.8).  
 7. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
 
@@ -625,6 +685,7 @@ bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc //pb:
 bazel build //src/ad:ad //src/fraud-detection:fraud_detection --config=ci
 bazel build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
 bazel build //src/accounting:accounting_publish //src/accounting:accounting_image --config=ci
+bazel build //src/cart:cart_publish //src/cart:cart_image --config=ci   # BZ-081 + BZ-121
 bazel build //src/checkout/... //src/product-catalog/... //src/payment:payment --config=ci
 bazel build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci
 bazel build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image //src/llm:llm_image //src/load-generator:load_generator_image --config=ci

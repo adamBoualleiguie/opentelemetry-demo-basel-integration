@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **Rust `shipping`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET, and Rust (**`rust_binary`** + **distroless `cc`** for glibc-linked GNU targets): digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet** for **`accounting`** + **`cart`**), and Rust (**`rust_binary`** + **distroless `cc`**): digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -69,6 +69,16 @@ This note records the **chosen direction** for building container images with Ba
 | **Layers** | **`rules_pkg`** **`pkg_tar`** of **`accounting_publish`** under **`/app`** (**`package_dir = "app"`**). |
 | **Runtime** | **`ENTRYPOINT`** **`./instrument.sh dotnet Accounting.dll`** (**OpenTelemetry .NET auto-instrumentation** from the publish tree), **`WORKDIR`** **`/app`**, **`OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=Accounting.Consumer`**. |
 | **Caveat** | **`src/accounting/Dockerfile`** creates **`/var/log/opentelemetry/dotnet`** and **`chown`** for **`app`**; the Bazel image omits that unless you add another **`pkg_tar`**. Build **`accounting_publish`** needs **.NET 10** on the host and network for NuGet (**`requires-network`**). |
+
+### .NET (`cart`)
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | **`//src/cart:cart_image`**, **`//src/cart:cart_load`** → **`otel/demo-cart:bazel`**. |
+| **Base** | Same **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet:10.0`**, digest in **`MODULE.bazel`**) as **`accounting`**. |
+| **Layers** | **`rules_pkg`** **`pkg_tar`** of **`cart_publish`** under **`/app`**. |
+| **Runtime** | **`ENTRYPOINT`** **`dotnet cart.dll`**, **`WORKDIR`** **`/app`**, **7070/tcp** (demo **`CART_PORT`**). Requires **`VALKEY_ADDR`** (and OTLP env as needed), same as Compose. |
+| **Caveat** | **`src/cart/src/Dockerfile`** builds a **musl** **single-file** **`./cart`** on **`runtime-deps:alpine`**. Bazel uses **framework-dependent** **`cart.dll`** on **aspnet** (see **`docs/bazel/milestones/m3-completion.md`** §6.2). **`dotnet test`** for **`tests/cart.tests.csproj`** is not a **`bazel test`** target yet. |
 
 ### Rust (`shipping`)
 

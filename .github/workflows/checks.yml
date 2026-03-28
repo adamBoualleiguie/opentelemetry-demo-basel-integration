@@ -122,6 +122,7 @@ jobs:
           bazelisk build //src/ad:ad //src/fraud-detection:fraud_detection --config=ci
           bazelisk build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
           bazelisk build //src/accounting:accounting_publish //src/accounting:accounting_image --config=ci
+          bazelisk build //src/cart:cart_publish //src/cart:cart_image --config=ci
           bazelisk build //src/checkout/... //src/product-catalog/... //src/payment/... --config=ci
           bazelisk build //src/frontend:frontend_image --config=ci
           bazelisk build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci

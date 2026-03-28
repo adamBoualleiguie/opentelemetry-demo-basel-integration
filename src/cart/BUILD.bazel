@@ -1,0 +1,62 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-081 (early) / M3+: .NET cart — `dotnet publish` + OCI (aspnet 10.0).
+# Layout matches `src/cart/src/Dockerfile` intent: tree under package root + `pb/demo.proto`
+# (see `cart.csproj` Protobuf includes). Publish overrides single-file/self-contained so the
+# image uses framework-dependent `cart.dll` + `dotnet` like other demo .NET containers.
+
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//tools/bazel:dotnet_publish.bzl", "dotnet_publish")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "cart_publish_sources",
+    srcs = glob(
+        [
+            "Directory.Build.props",
+            "NuGet.config",
+            "cart.slnx",
+            "src/**/*.cs",
+            "src/**/*.csproj",
+            "src/**/*.json",
+        ],
+        exclude = [
+            "src/bin/**",
+            "src/obj/**",
+        ],
+    ),
+)
+
+dotnet_publish(
+    name = "cart_publish",
+    srcs = [":cart_publish_sources"],
+    csproj = "src/cart.csproj",
+    extra_publish_args = "/p:PublishSingleFile=false /p:SelfContained=false",
+    proto = "//pb:demo.proto",
+    proto_dest = "pb/demo.proto",
+    tags = ["requires-network"],
+)
+
+pkg_tar(
+    name = "cart_layer",
+    srcs = [":cart_publish"],
+    package_dir = "app",
+)
+
+oci_image(
+    name = "cart_image",
+    base = "@dotnet_aspnet_10_linux_amd64//:dotnet_aspnet_10_linux_amd64",
+    entrypoint = ["dotnet", "cart.dll"],
+    exposed_ports = ["7070/tcp"],
+    tars = [":cart_layer"],
+    workdir = "/app",
+)
+
+oci_load(
+    name = "cart_load",
+    image = ":cart_image",
+    repo_tags = ["otel/demo-cart:bazel"],
+)
