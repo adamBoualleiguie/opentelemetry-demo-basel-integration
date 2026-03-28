@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** — **`oci_image`** + **`oci_load`** each | Proves Go, Node, Next, Python (**`rules_pkg`** `pkg_tar` + **`py_binary`** runfiles), JVM (**`java_binary` deploy JAR** + **`pkg_tar`**), and .NET (**`dotnet publish`** output + **`aspnet`** base) paths: digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **Rust `shipping`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET, and Rust (**`rust_binary`** + **distroless `cc`** for glibc-linked GNU targets): digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -69,6 +69,16 @@ This note records the **chosen direction** for building container images with Ba
 | **Layers** | **`rules_pkg`** **`pkg_tar`** of **`accounting_publish`** under **`/app`** (**`package_dir = "app"`**). |
 | **Runtime** | **`ENTRYPOINT`** **`./instrument.sh dotnet Accounting.dll`** (**OpenTelemetry .NET auto-instrumentation** from the publish tree), **`WORKDIR`** **`/app`**, **`OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=Accounting.Consumer`**. |
 | **Caveat** | **`src/accounting/Dockerfile`** creates **`/var/log/opentelemetry/dotnet`** and **`chown`** for **`app`**; the Bazel image omits that unless you add another **`pkg_tar`**. Build **`accounting_publish`** needs **.NET 10** on the host and network for NuGet (**`requires-network`**). |
+
+### Rust (`shipping`)
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | **`//src/shipping:shipping_image`**, **`//src/shipping:shipping_load`** → **`otel/demo-shipping:bazel`**. |
+| **Base** | **`gcr.io/distroless/cc-debian13:nonroot`** (multi-arch index digest **`sha256:9c4fe2381c2e6d53c4cfdefeff6edbd2a67ec7713e2c3ca6653806cbdbf27a1e`** in **`MODULE.bazel`** as **`distroless_cc_debian13_nonroot`**). Matches **`src/shipping/Dockerfile`** final stage. |
+| **Layers** | **`aspect_bazel_lib`** **`mtree_spec`** / **`mtree_mutate`** / **`tar`** (same pattern as **`checkout`**) with **`package_dir = "app"`** — binary at **`/app/shipping`**. |
+| **Runtime** | **`ENTRYPOINT`** **`./shipping`**, **`WORKDIR`** **`/app`**, **50050/tcp** (demo **`SHIPPING_PORT`**). Requires **`SHIPPING_PORT`** (and OTLP endpoints if exporting) at **`docker run`**, same as Docker Compose. |
+| **Caveat** | Default **`rules_rust`** Linux binary is **dynamically linked** to **glibc** — use **`distroless/cc`**, not **`distroless/static`**. A **musl** / fully static build could move to **`static`** later. **`oci_image`** **`base`** is **linux/amd64** today (see **`checkout`** platform note). |
 
 ## Out of scope at BZ-120
 

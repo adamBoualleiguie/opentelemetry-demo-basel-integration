@@ -1,0 +1,96 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-090: rules_rust + crate_universe (`shipping_crates` from Cargo.lock / cargo-bazel-lock.json).
+# BZ-121: OCI — same layout as src/shipping/Dockerfile (WORKDIR /app, ./shipping).
+
+load("@aspect_bazel_lib//lib:tar.bzl", "mtree_mutate", "mtree_spec", "tar")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("@shipping_crates//:defs.bzl", "aliases", "all_crate_deps")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+    "cargo-bazel-lock.json",
+])
+
+rust_library(
+    name = "shipping_lib",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/main.rs"],
+    ),
+    aliases = aliases(),
+    crate_name = "shipping",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    deps = all_crate_deps(normal = True),
+)
+
+rust_binary(
+    name = "shipping",
+    srcs = ["src/main.rs"],
+    aliases = aliases(),
+    edition = "2021",
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    deps = [":shipping_lib"] + all_crate_deps(normal = True),
+)
+
+rust_test(
+    name = "shipping_test",
+    aliases = aliases(
+        normal_dev = True,
+        proc_macro_dev = True,
+    ),
+    crate = ":shipping_lib",
+    edition = "2021",
+    proc_macro_deps = all_crate_deps(
+        proc_macro = True,
+        proc_macro_dev = True,
+    ),
+    tags = ["unit"],
+    deps = all_crate_deps(
+        normal = True,
+        normal_dev = True,
+    ),
+)
+
+# --- BZ-121: OCI (rules_oci) — distroless cc for glibc-linked Rust binary (not static like Go checkout). ---
+mtree_spec(
+    name = "shipping_mtree_raw",
+    srcs = [":shipping"],
+    out = "shipping_mtree_raw.spec",
+)
+
+mtree_mutate(
+    name = "shipping_mtree",
+    mtree = ":shipping_mtree_raw",
+    package_dir = "app",
+    srcs = [":shipping"],
+)
+
+tar(
+    name = "shipping_layer",
+    srcs = [":shipping"],
+    mtree = ":shipping_mtree",
+    out = "shipping_layer.tar",
+)
+
+oci_image(
+    name = "shipping_image",
+    base = "@distroless_cc_debian13_nonroot_linux_amd64//:distroless_cc_debian13_nonroot_linux_amd64",
+    entrypoint = ["./shipping"],
+    exposed_ports = ["50050/tcp"],
+    tars = [":shipping_layer"],
+    workdir = "/app",
+)
+
+oci_load(
+    name = "shipping_load",
+    image = ":shipping_image",
+    repo_tags = ["otel/demo-shipping:bazel"],
+)

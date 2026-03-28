@@ -62,6 +62,9 @@ py_library(
     ],
 )
 
+# Rust (BZ-030 / BZ-090 follow-up): no `rust_proto_library` here yet — `src/shipping` does not import
+# demo.proto. When needed, generate prost/tonic from `:demo_proto` and depend from `//src/shipping:shipping_lib`.
+
 # BZ-031: Go + gRPC (protoc-gen-go + protoc-gen-go-grpc via rules_go).
 _GO_GRPC_COMPILERS = [
     "@rules_go//proto:go_proto",

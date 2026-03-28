@@ -59,11 +59,11 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | Python ×4 | M3 (BZ-060/061) + **BZ-121** OCI | **Buildable:** `rules_python` + dual **`pip.parse`** hubs; **`//pb:demo_py_grpc`**; **`py_binary`** + **`oci_image`** / **`oci_load`** per service (**§4**, **§9.5**). |
 | Java `ad`, Kotlin `fraud-detection` | M3 (BZ-070/071) + **BZ-034** + **BZ-121** | **Built in Bazel:** `//src/ad:ad`, `//src/fraud-detection:fraud_detection`; protos from **`//pb:demo_java_grpc`**; **`oci_image`** / **`oci_load`** **`ad_oci_*`**, **`fraud_detection_oci_*`** (see **§5**, **§9.6**). Gradle/Docker remain alternate entrypoints. **No `java_test` / `kt_jvm_test`** in-tree yet. |
 | .NET `accounting` | M3 (BZ-080 + BZ-121 OCI) | **`dotnet_publish`** → **`//src/accounting:accounting_publish`**; **`pkg_tar`** + **`oci_image`** **`accounting_image`** / **`oci_load`** **`accounting_load`** (**`otel/demo-accounting:bazel`**) on **`mcr.microsoft.com/dotnet/aspnet:10.0`** (digest-pinned **`dotnet_aspnet_10`** in **`MODULE.bazel`**). Host **.NET 10** SDK; **`.bazelrc`** forwards **`PATH`** / **`DOTNET_ROOT`** into actions. **`requires-network`**. No in-tree **`dotnet test`** projects yet. |
-| Rust `shipping` | M3 (BZ-090) | **Not started**. |
+| Rust `shipping` | M3 (BZ-090 + **BZ-121** OCI) | **`rules_rust` 0.69** + **`crate_universe`** **`shipping_crates`**; **`rust_library`** / **`rust_binary`** / **`rust_test`** (**`unit`**). **OCI:** **`shipping_image`** / **`shipping_load`** → **`otel/demo-shipping:bazel`** on **`gcr.io/distroless/cc-debian13:nonroot`** (**`distroless_cc_debian13_nonroot`** in **`MODULE.bazel`**); **`mtree_spec`** / **`tar`** layer places **`shipping`** at **`/app/shipping`** (same as **`src/shipping/Dockerfile`**). **Proto:** not in Bazel yet (**`docs/bazel/proto-policy.md`**). Repin: **`CARGO_BAZEL_REPIN=1 bazel sync --only=shipping_crates`**. |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, and **.NET `accounting`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; accounting uses **aspnet 10.0** + publish output under **`/app`**. |
-| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, and **Rust `shipping`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** uses **distroless cc** (glibc-linked binary); JVM uses **distroless Java 21 / 17** + deploy JAR layers; accounting uses **aspnet 10.0** under **`/app`**. |
+| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
 
@@ -315,20 +315,31 @@ bazel build //src/accounting:accounting_publish //src/accounting:accounting_imag
 
 | Field | Detail |
 |-------|--------|
-| **Stack** | **Cargo** (`Cargo.toml`, `edition = "2021"`), **actix-web**, **tonic**, OpenTelemetry crates. |
-| **Build today** | `cargo build --release` in Docker. |
-| **Proto** | **BZ-030** if gRPC types must come from Bazel: `prost`/`tonic` build from `proto_library` via **`rules_rust`** `rust_proto_library` (or `cargo_build_script` bridge). |
-| **Backlog** | **BZ-090** — `rust_binary` + `rust_test`, `cargo` integration. |
+| **Stack** | **Cargo** (`Cargo.toml`, **`edition = "2021"`**), **actix-web**, **tonic** (errors + OTLP), OpenTelemetry crates. |
+| **Build today** | `cargo build` / **`cargo test`** locally; Docker **`cargo build --release`**. |
+| **Proto** | Service does **not** import **`demo.proto`** types today. When it should: add **`rust_proto_library`** / **prost** from **`//pb:demo_proto`** (or a **`cargo_build_script`** bridge) per **`docs/bazel/proto-policy.md`**. |
+| **Backlog** | **BZ-090** — **`rust_binary`** + **`rust_test`**, Cargo lockfile + crate universe. |
 
-**Conversion steps:**
+**What we implemented**
 
-1. Add **`rules_rust`** to `MODULE.bazel`; **`crate_universe`** from `Cargo.toml` (or `cargo_lockfile` import).  
-2. Map **workspace** or single-crate layout: `rust_binary(name = "shipping", srcs = ..., deps = ...)` from resolved crates.  
-3. **Proto:** either (a) generate from `//pb:demo_proto` in Bazel and depend from `rust_library`, or (b) keep `build.rs` temporarily and declare **`cargo_build_script`** — backlog prefers consistency with **BZ-030** over time.  
-4. **`rust_test`** for unit tests under `src/**` with `tags = ["unit"]`.  
-5. **CI:** `bazel test //src/shipping/...`.
+1. **`MODULE.bazel`** — **`bazel_dep(rules_rust, 0.69.0)`**; **`rust.toolchain(edition = "2021")`** + **`register_toolchains("@rust_toolchains//:all")`**. **Do not** declare a second **`rust_host_tools`** tag in the root module (**rules_rust** already registers it — duplicate **`host_tools`** breaks analysis).  
+2. **`crate_universe`** — extension **`shipping_crate_index`**, **`from_cargo`** **`name = "shipping_crates"`** with **`cargo_lockfile = "//src/shipping:Cargo.lock"`**, **`manifests = ["//src/shipping:Cargo.toml"]`**, **`lockfile = "//src/shipping:cargo-bazel-lock.json"`** (committed for reproducible CI). After changing **`Cargo.toml`** / **`Cargo.lock`**, run **`CARGO_BAZEL_REPIN=1 bazel sync --only=shipping_crates`** (or **`REPIN=1`**) and commit the updated **`cargo-bazel-lock.json`**.  
+3. **`src/shipping/BUILD.bazel`** — **`load("@shipping_crates//:defs.bzl", "aliases", "all_crate_deps")`**; **`rust_library`** **`shipping_lib`** with **`crate_name = "shipping"`** (so **`main.rs`** can **`use shipping::...`**), **`rust_binary`** **`shipping`** (**`deps = [":shipping_lib"] + all_crate_deps(normal = True)`** + proc-macros for **`#[actix_web::main]`**), **`rust_test`** **`shipping_test`** **`crate = ":shipping_lib"`** with **`tags = ["unit"]`**.  
+4. **`src/lib.rs`** — **`pub mod telemetry_conf`**, **`pub mod shipping_service`**, re-exports **`get_quote`** / **`ship_order`** so the crate matches Cargo’s library + binary layout.  
+5. **Tests:** **`quote`** module **`#[test]`**s and **`shipping_service`** **`#[actix_web::test]`** run via **`rust_test`** on **`shipping_lib`**. **`ShipOrderRequest`** in tests uses **`address: None`**, **`items: vec![]`** (structural init; **`ShipOrderRequest {}`** is invalid without **`Default`**).  
+6. **BZ-121 OCI** — **`MODULE.bazel`** **`oci.pull`** **`distroless_cc_debian13_nonroot`** (index digest **`sha256:9c4fe2381c2e6d53c4cfdefeff6edbd2a67ec7713e2c3ca6653806cbdbf27a1e`**, **`gcr.io/distroless/cc-debian13`**) matches **`src/shipping/Dockerfile`** runtime (**not** **`static`** — default **`rules_rust`** Linux GNU target links **glibc**). **`src/shipping/BUILD.bazel`**: **`mtree_spec`** / **`mtree_mutate`** (**`package_dir = "app"`**) / **`tar`** **`shipping_layer`**, **`oci_image`** **`shipping_image`** (**`entrypoint`** **`["./shipping"]`**, **`workdir`** **`/app`**, **`50050/tcp`**), **`oci_load`** **`shipping_load`** → **`otel/demo-shipping:bazel`**.
 
-**Status in this repository:** **Not started**.
+**Verification**
+
+```bash
+bazel build //src/shipping:shipping //src/shipping:shipping_lib --config=ci
+bazel build //src/shipping:shipping_image //src/shipping:shipping_load --config=ci
+bazel test //src/shipping/... --config=ci
+bazel test //src/shipping:shipping_test --config=unit
+# optional: bazel run //src/shipping:shipping_load && docker image ls | grep otel/demo-shipping
+```
+
+**Status in this repository:** **Implemented** (**BZ-090** build/test + **BZ-121** **`shipping_image`** / **`shipping_load`**). **Fully static** Rust (**musl**) could switch the base to **`distroless_static`** later; not attempted here.
 
 ---
 
@@ -395,7 +406,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), and **.NET `accounting`** (**`dotnet publish`** layer + **`mcr.microsoft.com/dotnet/aspnet:10.0`** — **§9.7**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** (**`dotnet publish`** + **aspnet** — **§9.7**), and **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -404,7 +415,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 **Module wiring (`MODULE.bazel`):**
 
 - **`bazel_dep`:** `rules_oci` 2.3.0, `aspect_bazel_lib` 2.21.1, `tar.bzl` 0.7.0, **`rules_pkg`** 1.0.1 (Python service **`pkg_tar`** layers).
-- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
+- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_cc_debian13_nonroot`** (Rust **shipping**), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
 - **Why there is no `oci.toolchains()` in the root module:** the **`rules_oci` module’s own `MODULE.bazel` already calls `oci.toolchains()`**. Bzlmod merges extension tags; a second `oci.toolchains()` from the root duplicated crane repositories and broke analysis. The root module still **`use_repo`**-exports **`oci_crane_toolchains`** and **`oci_regctl_toolchains`** and **`register_toolchains(...)`** for them so crane/regctl are visible from this repo.
 - **Supporting toolchains:** `aspect_bazel_lib` **`jq`** + **`zstd`**; **`tar.bzl`** **`bsd_tar_toolchains`** — required by **`rules_oci`** / aspect tar rules.
 
@@ -540,6 +551,29 @@ docker image ls | grep otel/demo-accounting
 - **Log dir:** Dockerfile **`RUN mkdir -p /var/log/opentelemetry/dotnet`** + **`chown`** is **not** in the Bazel layer yet.  
 - **`bazel_smoke`** builds **`accounting_image`** (same pattern as other **`*_image`** targets; **`oci_load`** is optional locally).
 
+### 9.8 BZ-121 — Extension: Rust **`shipping`**
+
+**What we added**
+
+1. **`MODULE.bazel`** — **`oci.pull`** **`distroless_cc_debian13_nonroot`** for **`gcr.io/distroless/cc-debian13`** (multi-arch index digest **`sha256:9c4fe2381c2e6d53c4cfdefeff6edbd2a67ec7713e2c3ca6653806cbdbf27a1e`**), aligned with **`src/shipping/Dockerfile`** (**`:nonroot`**). **`use_repo`** exports **`distroless_cc_debian13_nonroot_{linux_amd64,linux_arm64}`**.
+
+2. **`src/shipping/BUILD.bazel`** — same **`aspect_bazel_lib`** **`mtree_spec`** / **`mtree_mutate`** / **`tar`** pattern as **`checkout`**, but **`package_dir = "app"`** so the binary is **`/app/shipping`**. **`oci_image`** **`shipping_image`**: **`base`** = **`@distroless_cc_debian13_nonroot_linux_amd64//:...`**, **`entrypoint`** **`["./shipping"]`**, **`workdir`** **`/app`**, **`exposed_ports`** **`["50050/tcp"]`** (**.env** **`SHIPPING_PORT`**). **`oci_load`** **`shipping_load`** → **`otel/demo-shipping:bazel`**.
+
+**Why `cc` not `static`:** the default **`rules_rust`** Linux target (**`x86_64-unknown-linux-gnu`**) produces a **dynamically linked** binary (glibc). **`gcr.io/distroless/static`** lacks glibc — use **`static`** only if you move to a **musl** / fully static link strategy.
+
+**Verification**
+
+```bash
+bazel build //src/shipping:shipping_image //src/shipping:shipping_load --config=ci
+bazel run //src/shipping:shipping_load
+docker image ls | grep otel/demo-shipping
+```
+
+**Caveats**
+
+- **`bazel_smoke`** builds **`shipping_image`** (not **`shipping_load`**) like other JVM / Go OCI targets.  
+- **Multi-arch:** **`oci_image` `base`** is **linux/amd64** today; **`oci.pull`** still fetches **arm64** for future native or cross builds.
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -564,7 +598,7 @@ docker image ls | grep otel/demo-accounting
 | `slow` | Large timeouts. |
 | `manual` | Not run in CI unless explicitly selected. |
 
-**Ongoing:** When adding **`py_test`**, **`rust_test`**, or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added.
+**Ongoing:** When adding **`py_test`**, **`rust_test`**, or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**).
 
 ---
 
@@ -577,7 +611,8 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 3. **BZ-060 / BZ-061** — Python wave starting with **`recommendation`**.  
 4. **BZ-070 / BZ-071** — JVM (shared Maven pin helps both).  
 5. **BZ-080 / BZ-121** — .NET **`accounting`** (**`accounting_publish`** + **`accounting_image`**) — **done** in this fork (§6, §9.7).  
-6. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
+6. **BZ-090 / BZ-121** — Rust **`shipping`** (build, test, **`shipping_image`**) — **done** in this fork (§7, §9.8).  
+7. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
 
 ---
 
@@ -593,9 +628,11 @@ bazel build //src/accounting:accounting_publish //src/accounting:accounting_imag
 bazel build //src/checkout/... //src/product-catalog/... //src/payment:payment --config=ci
 bazel build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci
 bazel build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image //src/llm:llm_image //src/load-generator:load_generator_image --config=ci
+bazel build //src/shipping:shipping //src/shipping:shipping_image --config=ci   # BZ-090 + BZ-121 OCI
 bazel test  //src/checkout/... //src/product-catalog/... --config=ci
+bazel test  //src/shipping/... --config=ci      # BZ-090 (rust_test)
 bazel test  //src/frontend:lint --config=ci   # BZ-051 (Next ESLint)
-bazel test  //src/checkout/money:money_test --config=unit
+bazel test  //src/checkout/money:money_test //src/shipping:shipping_test --config=unit
 bazel test  //... --config=unit   # all tests tagged `unit` (see docs/bazel/test-tags.md)
 bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 (checkout)
 bazel build //src/payment:payment_image //src/payment:payment_load --config=ci       # BZ-121 (payment)
@@ -605,8 +642,7 @@ bazel build //src/frontend:frontend_image //src/frontend:frontend_load --config=
 **Still to add (other M3 backlog items):**
 
 ```bash
-bazel build //src/shipping:...         # after BZ-090
-# etc.
+# e.g. further BZ-122 rollout, registry push, etc.
 ```
 
 ---

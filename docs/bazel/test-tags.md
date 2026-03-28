@@ -37,11 +37,12 @@ bazel test //src/checkout/... --config=ci --config=unit
 2. **Gazelle** does not add tags automatically; update **`BUILD.bazel`** after `gazelle update`.  
 3. **Python / Rust / JS** tests: apply the same convention when those targets are added (**M3+**).
 
-## Current Go tests
+## Current `unit` tests
 
 | Target | Tags |
 |--------|------|
 | `//src/checkout/money:money_test` | `unit` |
+| `//src/shipping:shipping_test` | `unit` |
 
 ---
 
