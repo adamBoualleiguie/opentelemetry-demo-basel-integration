@@ -1,0 +1,62 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-095: PHP quote — host `composer install` (//tools/bazel:composer_install.bzl), sh_test smoke, OCI on php:8.4-cli-alpine3.22.
+
+load("//tools/bazel:composer_install.bzl", "composer_install")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+package(default_visibility = ["//visibility:public"])
+
+_QUOTE_SRC_GLOBS = [
+    "composer.json",
+    "app/**",
+    "public/**",
+    "src/**",
+]
+
+filegroup(
+    name = "quote_release_srcs",
+    srcs = glob(_QUOTE_SRC_GLOBS),
+)
+
+composer_install(
+    name = "quote_publish",
+    srcs = [":quote_release_srcs"],
+    tags = ["requires-network"],
+)
+
+sh_test(
+    name = "quote_composer_smoke_test",
+    srcs = ["run_composer_smoke_test.sh"],
+    data = [":quote_release_srcs"],
+    size = "enormous",
+    tags = [
+        "requires-network",
+        "unit",
+    ],
+)
+
+pkg_tar(
+    name = "quote_app_layer",
+    srcs = [":quote_publish"],
+    package_dir = "var/www",
+)
+
+oci_image(
+    name = "quote_image",
+    base = "@php_84_cli_alpine322_linux_amd64//:php_84_cli_alpine322_linux_amd64",
+    cmd = [],
+    entrypoint = ["php", "public/index.php"],
+    env = {},
+    exposed_ports = ["8090/tcp"],
+    tars = [":quote_app_layer"],
+    workdir = "/var/www",
+)
+
+oci_load(
+    name = "quote_load",
+    image = ":quote_image",
+    repo_tags = ["otel/demo-quote:bazel"],
+)

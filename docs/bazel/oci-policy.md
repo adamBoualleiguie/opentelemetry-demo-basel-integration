@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** + **C++ `currency`** + **Ruby `email`** + **Elixir `flagd-ui`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet**), Rust (**`rust_binary`** + **distroless `cc`**), C++ (**distroless `cc`**), Ruby (**`ruby:3.4.8-slim-bookworm`**), and Elixir (**`mix release`** artifact + **`debian:bullseye-slim`**): digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** + **C++ `currency`** + **Ruby `email`** + **Elixir `flagd-ui`** + **PHP `quote`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet**), Rust (**`rust_binary`** + **distroless `cc`**), C++ (**distroless `cc`**), Ruby (**`ruby:3.4.8-slim-bookworm`**), Elixir (**`mix release`** + **`debian:bullseye-slim`**), and PHP (**`composer install`** + **`php:8.4-cli-alpine3.22`**): digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -110,6 +110,17 @@ This note records the **chosen direction** for building container images with Ba
 | **Layers** | **`rules_pkg`** **`pkg_tar`** **`flagd_ui_release_layer`** — contents of **`mix release`** under **`/app`** ( **`bin/server`**, embedded **ERTS**, etc.). |
 | **Runtime** | **`ENTRYPOINT`** **`/bin/sh -c 'ulimit …; exec /app/bin/server'`**, **`WORKDIR`** **`/app`**, **`4000/tcp`** (demo **`FLAGD_UI_PORT`**). **`PHX_SERVER`** is set by **`rel/overlays/bin/server`**. |
 | **Caveat** | The stock **Dockerfile** runs **`apt-get install`** for **`libstdc++6`**, **`openssl`**, **`libncurses5`**, **`locales`**, **`ca-certificates`**. **Official `debian:bullseye-slim`** already includes **`libssl1.1`**; it does **not** install **`ca-certificates`** by default — OTLP over **HTTPS** from the container may need an extra layer or use **`src/flagd-ui/Dockerfile`** for full parity. **Prod** still requires **`SECRET_KEY_BASE`**, **`OTEL_EXPORTER_OTLP_ENDPOINT`**, etc. (**`config/runtime.exs`**). |
+
+### PHP (`quote`)
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | **`//src/quote:quote_image`**, **`//src/quote:quote_load`** → **`otel/demo-quote:bazel`**. |
+| **Build** | **`//src/quote:quote_publish`** — custom **`composer_install`** rule (**`//tools/bazel:composer_install.bzl`**) copies **`composer.json`**, **`app/`**, **`public/`**, **`src/`** into a temp tree and runs **`composer install`** with the same flags as the **Dockerfile** vendor stage (**`--ignore-platform-reqs`**, **`--no-dev`**, **`--no-plugins`**, **`--no-scripts`**, **`--prefer-dist`**). |
+| **Base** | **`docker.io/library/php`** **`8.4-cli-alpine3.22`** (multi-arch index digest **`sha256:1029d5513f254a17f41f8384855cb475a39f786e280cf261b99d2edef711f32d`** in **`MODULE.bazel`** as **`php_84_cli_alpine322`**). Same **tag** as the **final** stage of **`src/quote/Dockerfile`**. |
+| **Layers** | **`rules_pkg`** **`pkg_tar`** **`quote_app_layer`** — full tree (**`vendor/`** + app) under **`/var/www`**, matching **`WORKDIR`** in the **Dockerfile**. |
+| **Runtime** | **`ENTRYPOINT`** **`["php", "public/index.php"]`**, **`WORKDIR`** **`/var/www`**, **`8090/tcp`** (demo **`QUOTE_PORT`** in **`.env`**). **`QUOTE_PORT`** must be set at **`docker run`** (the app reads **`getenv('QUOTE_PORT')`**). |
+| **Caveat** | **`src/quote/Dockerfile`** installs **PECL** extensions via **`install-php-extensions`** (**`opcache`**, **`pcntl`**, **`protobuf`**, **`opentelemetry`**). The stock **`php:8.4-cli-alpine`** base used here does **not** run that step — **OpenTelemetry** for PHP may fall back to **pure PHP** auto-instrumentation where supported; for **full** extension parity (or **grpc**), build from **`src/quote/Dockerfile`** or add a custom base image. The **Dockerfile** also runs **`composer`** as **`USER www-data`**; the Bazel image runs as the image default user (**root** on this base unless you add **`user`** metadata — not set today). |
 
 ## Out of scope at BZ-120
 

@@ -24,6 +24,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
    - [7.2 `src/currency` — C++ / gRPC (BZ-092)](#72-service-srccurrency--c--grpc-bz-092)  
    - [7.3 `src/email` — Ruby (BZ-093)](#73-service-srcemail--ruby-bz-093)  
    - [7.4 `src/flagd-ui` — Elixir / Phoenix (BZ-094)](#74-service-srcflagd-ui--elixir--phoenix-bz-094)  
+   - [7.5 `src/quote` — PHP (BZ-095)](#75-service-srcquote--php-bz-095)  
 8. [Epic F — Node: frontend (BZ-051)](#8-epic-f--node-frontend-bz-051)  
 9. [Epic M — OCI images (BZ-120, BZ-121)](#9-epic-m--oci-images-bz-120-bz-121)  
 10. [Epic N — Test taxonomy (BZ-130)](#10-epic-n--test-taxonomy-bz-130)  
@@ -49,6 +50,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | **M** | **BZ-122** | Roll out images per service | **M4** | Not M3. |
 | **N** | **BZ-130** | Global test tag convention | M3 | Documented; `.bazelrc` examples for filters. Depends on **BZ-013**. |
 | **N** | **BZ-131**–**133** | Cypress, Tracetest, consolidate unit tests | M4–M5 | Out of M3 strict scope; noted for sequencing. |
+| **—** | **BZ-095** | `quote` — PHP / Composer | M3 (this fork) | **`composer_install`** + **`sh_test`** smoke + **`oci_image`** on **`php:8.4-cli-alpine3.22`**; documented in **§7.5** / **§9.13** (not a separate line in upstream backlog — local ID aligned after **BZ-094**). |
 
 **Proto dependencies called out by backlog:** **BZ-032** (Python grpc), **BZ-034** (Java/Kotlin), **BZ-036** (.NET) — these tie M3 services to the central `pb/demo.proto` story from M1 (`docs/bazel/proto-policy.md`).
 
@@ -68,10 +70,11 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | C++ `currency` | M3 (**BZ-092** + **BZ-121** OCI) | **`grpc` 1.66.0.bcr.2** + **`opentelemetry-cpp` 1.24.0.bcr.1** + **`googletest`** in **`MODULE.bazel`**; **`single_version_override`** on **`protobuf`**, **`grpc`**, and **`abseil-cpp`** so C++ gRPC + protobuf 29.x stay consistent (avoids Bzlmod pulling protobuf 33 / grpc 1.69, which breaks the gRPC C++ / protobuf **upb** graph). **`//pb:demo_cpp_grpc`** (**`cc_proto_library`** + **`cc_grpc_library`**) for optional reuse; **`//src/currency`** copies **`//pb:demo.proto`** via **`genrule`** (protobuf requires same-package **`.proto`**), then **`cc_grpc_library`** (**`grpc_only`**) + **`cc_proto_library`**. **`currency_includes.bzl`** rule adds **`-I`** for **`bazel-bin/src/currency`** and **`bazel-bin/external/grpc~/src/proto`** so **`#include <demo.grpc.pb.h>`** and **`#include <grpc/health/v1/health.grpc.pb.h>`** resolve (gRPC health stubs from **`@com_github_grpc_grpc//src/proto/grpc/health/v1:health_proto`** — not **`@grpc-proto`**, because **`cc_grpc_library` cannot codegen from an external-repo path referenced only from `//pb`**). **`cc_library` `currency_lib`** uses **`features = ["-pic"]`** so gRPC stub code links as **`.a`** (avoids **`libcurrency_*_cc_grpc.so`** undefined **C core** symbols at link time). **`cc_binary` `currency`**; **`cc_test` `currency_proto_smoke_test`** (**`unit`**) links **`cc_proto`** only. **OCI:** **`currency_image`** / **`currency_load`** → **`otel/demo-currency:bazel`** on **`distroless_cc_debian13_nonroot`** (**`7001/tcp`**, **`cmd = ["7001"]`**, **`entrypoint = ["./currency"]`**). |
 | Ruby `email` | M3 (**BZ-093** + **BZ-121** OCI) | **`rules_ruby` 0.24** — portable MRI **3.4.8** (**`version_file = "//src/email:.ruby-version"`**), **`ruby.bundle_fetch`** **`email_bundle`** from **`Gemfile` / `Gemfile.lock`**. **`rb_library` / `rb_binary` `email`**; **`rb_test` `email_gems_smoke_test`** (**`unit`**). **`Gemfile.lock`** **`PLATFORMS`** limited to **`x86_64-linux`** + **`aarch64-linux`** (glibc) so **`bundle install`** under Bazel resolves **grpc** / native gems for Linux; **`google-protobuf`** uses **`force_ruby_platform: true`**. **OCI:** **`email_image`** / **`email_load`** → **`otel/demo-email:bazel`** on **`docker.io/library/ruby:3.4.8-slim-bookworm`** (**`ruby_348_slim_bookworm`** in **`MODULE.bazel`** — Debian **glibc**, distinct from Compose **Alpine** Dockerfile). |
 | Elixir `flagd-ui` | M3 (**BZ-094** + **BZ-121** OCI) | **`mix_release`** (**`//tools/bazel:mix_release.bzl`**) → **`//src/flagd-ui:flagd_ui_publish`** (host **`mix release`**, **`requires-network`**). **`sh_test` `flagd_ui_mix_test`** (**`mix test`**, **`unit`**, **`requires-network`**, **`size = "enormous"`**). **OCI:** **`flagd_ui_image`** / **`flagd_ui_load`** → **`otel/demo-flagd-ui:bazel`** on **`debian:bullseye-20251117-slim`** (**`debian_bullseye_20251117_slim`**). **CI:** **`erlef/setup-beam`** (**Elixir 1.19.3**, **OTP 28.0.2**) + **`build-essential`** / **`git`**. |
+| PHP `quote` | M3 (**BZ-095** + **BZ-121** OCI) | **`composer_install`** (**`//tools/bazel:composer_install.bzl`**) → **`//src/quote:quote_publish`** (host **`composer install`**, **`requires-network`** — no **`composer.lock`**; mirrors **Dockerfile** vendor flags). **`sh_test` `quote_composer_smoke_test`** (**`unit`**, **`requires-network`**, **`size = "enormous"`** — **`vendor/autoload.php`** smoke). **OCI:** **`quote_image`** / **`quote_load`** → **`otel/demo-quote:bazel`** on **`php:8.4-cli-alpine3.22`** (**`php_84_cli_alpine322`**). **CI:** **`shivammathur/setup-php`** (**PHP 8.4** + **Composer**). **Caveat:** **Dockerfile** installs **PECL** extensions (**`opentelemetry`**, **`protobuf`**, …); Bazel base is stock **CLI** image — see **`oci-policy.md`**. |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, **Ruby `email`**, and **Elixir `flagd-ui`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**; **Ruby `email`** uses **`ruby:3.4.8-slim-bookworm`**; **Elixir `flagd-ui`** uses **`debian:bullseye-slim`** + **`mix release`** tarball. |
-| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`**, **`//src/currency:currency_proto_smoke_test`**, **`//src/email:email_gems_smoke_test`**, **`//src/flagd-ui:flagd_ui_mix_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, **Ruby `email`**, **Elixir `flagd-ui`**, and **PHP `quote`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**; **Ruby `email`** uses **`ruby:3.4.8-slim-bookworm`**; **Elixir `flagd-ui`** uses **`debian:bullseye-slim`** + **`mix release`** tarball; **PHP `quote`** uses **`php:8.4-cli-alpine3.22`** + **`composer install`** tree under **`/var/www`**. |
+| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`**, **`//src/currency:currency_proto_smoke_test`**, **`//src/email:email_gems_smoke_test`**, **`//src/flagd-ui:flagd_ui_mix_test`**, **`//src/quote:quote_composer_smoke_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
 
@@ -503,6 +506,51 @@ bazel test //src/flagd-ui:flagd_ui_mix_test --config=unit
 
 ---
 
+### 7.5 Service: `src/quote` — PHP (BZ-095)
+
+| Field | Detail |
+|-------|--------|
+| **Stack** | **PHP 8.3+** (demo **Dockerfile** uses **8.4**), **Slim 4**, **PHP-DI**, **React HTTP** server in **`public/index.php`**, **OpenTelemetry** PHP packages (**Composer**). |
+| **Build today** | **`src/quote/Dockerfile`**: multi-stage — **`composer:2.8.12`** runs **`composer install`** (prod-only, no lockfile), then **`php:8.4-cli-alpine3.22`** + **`install-php-extensions`** (**`opcache`**, **`pcntl`**, **`protobuf`**, **`opentelemetry`**), **`WORKDIR /var/www`**, **`USER www-data`**, **`CMD ["php", "public/index.php"]`**. |
+| **Proto** | **gRPC** consumer in the broader demo; this service does not compile **`pb/demo.proto`** in-tree (HTTP API only). |
+
+**Why a custom `composer_install` rule**
+
+- **BCR** does not expose a maintained **`rules_php`** + **Composer** graph that matches this app’s **Packagist** dependencies and **Slim** layout.
+- Same pattern as **.NET** **`dotnet_publish`** and **Elixir** **`mix_release`**: a **`run_shell`** action copies a **declared manifest** of files into a **temp tree**, runs **`composer install`** with flags aligned to the **Dockerfile** vendor stage, and writes a **`declare_directory`** — **`//src/quote:quote_publish`**.
+- **Trade-offs:** requires **host** **`php`** and **`composer`** (CI: **`shivammathur/setup-php`** with **PHP 8.4** + **Composer**), and **network** (**`tags = ["requires-network"]`** on **`quote_publish`**). There is **no** **`composer.lock`** in the repo; resolution is **floating** within **`composer.json`** constraints (same as **`docker build`** for this service).
+
+**Tests**
+
+- **`//src/quote:quote_composer_smoke_test`** is an **`sh_test`** (**`run_composer_smoke_test.sh`**) that resolves **`src/quote`** under **`$TEST_SRCDIR`**, runs **`composer install`** with the same prod flags, then **`php -r 'require "vendor/autoload.php";'`**. It is tagged **`unit`** and **`requires-network`**, **`size = "enormous"`**. It does **not** start the HTTP server. There is **no** **`phpunit`** suite in-tree yet; a future **`composer.lock`** + **`phpunit`** could add stricter tests.
+
+**OCI**
+
+- **`pkg_tar`** **`quote_app_layer`** packs **`quote_publish`** under **`var/www`** so the container matches **`WORKDIR /var/www`**.
+- **`oci_image`** **`quote_image`** uses **`php_84_cli_alpine322_linux_amd64`** (index digest **`sha256:1029d5513f254a17f41f8384855cb475a39f786e280cf261b99d2edef711f32d`** — **`docker buildx imagetools inspect php:8.4-cli-alpine3.22`**).
+- **`entrypoint`** **`["php", "public/index.php"]`** matches **`Dockerfile`** **`CMD`**. **`8090/tcp`** matches **`.env`** **`QUOTE_PORT`**.
+- **Caveat:** **Dockerfile** installs **PECL** extensions; the Bazel **OCI** base does **not** — see **`docs/bazel/oci-policy.md`** (**PHP (`quote`)**). **`docker run`** must pass **`QUOTE_PORT`** (and OTLP env vars as needed).
+
+**What we implemented**
+
+1. **`MODULE.bazel`** — **`oci.pull`** **`php_84_cli_alpine322`** + **`use_repo`** entries.  
+2. **`tools/bazel/composer_install.bzl`** — **`composer_install`** rule.  
+3. **`src/quote/BUILD.bazel`** — **`filegroup`** **`quote_release_srcs`**; **`composer_install` `quote_publish`**; **`sh_test` `quote_composer_smoke_test`**; **`pkg_tar`**; **`oci_image` / `oci_load`**.  
+4. **`.github/workflows/checks.yml`** — **`shivammathur/setup-php`** (**8.4** + **Composer**), **`bazel build`** / **`bazel test`** for **`//src/quote/...`**.
+
+**Verification**
+
+```bash
+bazel build //src/quote:quote_publish //src/quote:quote_image --config=ci
+bazel test //src/quote:quote_composer_smoke_test --config=ci
+bazel test //src/quote:quote_composer_smoke_test --config=unit
+# optional: bazel run //src/quote:quote_load && docker run --rm -e QUOTE_PORT=8090 -p 8090:8090 otel/demo-quote:bazel
+```
+
+**Status in this repository:** **Implemented** (**B** / **T** / **I**). **`docker compose build quote`** remains the entrypoint for **extension** parity with **`install-php-extensions`**.
+
+---
+
 ## 8. Epic F — Node: frontend (BZ-051)
 
 ### 8.1 Service: `src/frontend`
@@ -566,7 +614,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**), **C++ `currency`** (**`cc_binary`** + **distroless cc** — **§9.10**), **Ruby `email`** (**`rules_ruby`** **`bundle_fetch`** + **`ruby:3.4.8-slim-bookworm`** — **§9.11**), and **Elixir `flagd-ui`** (**`mix_release`** + **`debian:bullseye-slim`** — **§9.12** / **`oci-policy.md`**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), **.NET `accounting`** and **.NET `cart`** (**`dotnet publish`** + **aspnet** — **§9.7**, **§9.9**), **Rust `shipping`** (**`rust_binary`** + **distroless cc** — **§9.8**), **C++ `currency`** (**`cc_binary`** + **distroless cc** — **§9.10**), **Ruby `email`** (**`rules_ruby`** **`bundle_fetch`** + **`ruby:3.4.8-slim-bookworm`** — **§9.11**), **Elixir `flagd-ui`** (**`mix_release`** + **`debian:bullseye-slim`** — **§9.12**), and **PHP `quote`** (**`composer_install`** + **`php:8.4-cli-alpine3.22`** — **§9.13** / **`oci-policy.md`**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -575,7 +623,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 **Module wiring (`MODULE.bazel`):**
 
 - **`bazel_dep`:** `rules_oci` 2.3.0, `aspect_bazel_lib` 2.21.1, `tar.bzl` 0.7.0, **`rules_pkg`** 1.0.1 (Python service **`pkg_tar`** layers).
-- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_cc_debian13_nonroot`** (Rust **shipping**), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), **`ruby_348_slim_bookworm`** (Ruby **email**), **`debian_bullseye_20251117_slim`** (Elixir **flagd-ui** runtime), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
+- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_cc_debian13_nonroot`** (Rust **shipping**), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), **`ruby_348_slim_bookworm`** (Ruby **email**), **`debian_bullseye_20251117_slim`** (Elixir **flagd-ui** runtime), **`php_84_cli_alpine322`** (PHP **quote** — **`docker.io/library/php:8.4-cli-alpine3.22`** index), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
 - **Why there is no `oci.toolchains()` in the root module:** the **`rules_oci` module’s own `MODULE.bazel` already calls `oci.toolchains()`**. Bzlmod merges extension tags; a second `oci.toolchains()` from the root duplicated crane repositories and broke analysis. The root module still **`use_repo`**-exports **`oci_crane_toolchains`** and **`oci_regctl_toolchains`** and **`register_toolchains(...)`** for them so crane/regctl are visible from this repo.
 - **Supporting toolchains:** `aspect_bazel_lib` **`jq`** + **`zstd`**; **`tar.bzl`** **`bsd_tar_toolchains`** — required by **`rules_oci`** / aspect tar rules.
 
@@ -811,6 +859,28 @@ bazel build //src/flagd-ui:flagd_ui_image //src/flagd-ui:flagd_ui_load --config=
 - **`bazel_smoke`** builds **`flagd_ui_publish`** and **`flagd_ui_image`**; **`mix test`** is a separate **`sh_test`** (duplicate Mix fetch).  
 - **§7.4** / **`oci-policy.md`**: **ca-certificates** / **locale** parity vs **`Dockerfile`**.
 
+### 9.13 BZ-121 — Extension: PHP **`quote`**
+
+**What we added**
+
+1. **`MODULE.bazel`** — **`oci.pull`** **`php_84_cli_alpine322`** (index digest **`sha256:1029d5513f254a17f41f8384855cb475a39f786e280cf261b99d2edef711f32d`** for **`docker.io/library/php:8.4-cli-alpine3.22`**).  
+2. **`tools/bazel/composer_install.bzl`** — **`composer_install`** (**`run_shell`** + **`declare_directory`**).  
+3. **`src/quote/BUILD.bazel`** — **`quote_publish`**; **`pkg_tar`** **`quote_app_layer`** under **`var/www`**; **`oci_image`** **`quote_image`** (**`entrypoint`** **`["php", "public/index.php"]`**); **`oci_load`** **`quote_load`** → **`otel/demo-quote:bazel`**; **`8090/tcp`**.  
+4. **`src/quote/run_composer_smoke_test.sh`** + **`sh_test`** **`quote_composer_smoke_test`** (**`unit`**, **`requires-network`**).
+
+**Verification**
+
+```bash
+bazel build //src/quote:quote_publish //src/quote:quote_image //src/quote:quote_load --config=ci
+bazel test //src/quote:quote_composer_smoke_test --config=ci
+# optional: bazel run //src/quote:quote_load && docker run --rm -e QUOTE_PORT=8090 -e OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4317 -p 8090:8090 otel/demo-quote:bazel
+```
+
+**Caveats**
+
+- **`bazel_smoke`** builds **`quote_publish`** and **`quote_image`**; **`quote_composer_smoke_test`** runs a **second** **`composer install`** (no shared **`vendor/`** between the action and the test).  
+- **§7.5** / **`oci-policy.md`**: **PECL** extensions (**`opentelemetry`**, **`protobuf`**, …) from **`install-php-extensions`** are **not** in the Bazel base image.
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -835,7 +905,7 @@ bazel build //src/flagd-ui:flagd_ui_image //src/flagd-ui:flagd_ui_load --config=
 | `slow` | Large timeouts. |
 | `manual` | Not run in CI unless explicitly selected. |
 
-**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, **`sh_test`** (or other runners), or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet). **`//src/email:email_gems_smoke_test`** is tagged **`unit`** (**BZ-093** — Bundler + gem load smoke). **`//src/flagd-ui:flagd_ui_mix_test`** is tagged **`unit`** (**BZ-094** — **`mix test`**, **`requires-network`**).
+**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, **`sh_test`** (or other runners), or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet). **`//src/email:email_gems_smoke_test`** is tagged **`unit`** (**BZ-093** — Bundler + gem load smoke). **`//src/flagd-ui:flagd_ui_mix_test`** is tagged **`unit`** (**BZ-094** — **`mix test`**, **`requires-network`**). **`//src/quote:quote_composer_smoke_test`** is tagged **`unit`** (**BZ-095** — **`composer install`** + **`vendor/autoload.php`** smoke, **`requires-network`**).
 
 ---
 
@@ -852,6 +922,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 6b. **BZ-092 / BZ-121** — C++ **`currency`** (build, **`cc_test`**, **`currency_image`**) — **done** in this fork (§7.2, §9.10).  
 6c. **BZ-093 / BZ-121** — Ruby **`email`** (**`rules_ruby`**, **`rb_test`**, **`email_image`**) — **done** in this fork (§7.3, §9.11).  
 6d. **BZ-094 / BZ-121** — Elixir **`flagd-ui`** (**`mix_release`**, **`sh_test`**, **`flagd_ui_image`**) — **done** in this fork (§7.4, §9.12).  
+6e. **BZ-095 / BZ-121** — PHP **`quote`** (**`composer_install`**, **`sh_test`**, **`quote_image`**) — **done** in this fork (§7.5, §9.13).  
 7. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
 
 ---
@@ -873,13 +944,15 @@ bazel build //src/shipping:shipping //src/shipping:shipping_image --config=ci   
 bazel build //src/currency:currency //src/currency:currency_image --config=ci   # BZ-092 + BZ-121 OCI
 bazel build //src/email:email //src/email:email_image --config=ci   # BZ-093 + BZ-121 OCI
 bazel build //src/flagd-ui:flagd_ui_publish //src/flagd-ui:flagd_ui_image --config=ci   # BZ-094 + BZ-121 OCI (host mix)
+bazel build //src/quote:quote_publish //src/quote:quote_image --config=ci   # BZ-095 + BZ-121 OCI (host PHP + Composer)
 bazel test  //src/checkout/... //src/product-catalog/... --config=ci
 bazel test  //src/shipping/... --config=ci      # BZ-090 (rust_test)
 bazel test  //src/currency:currency_proto_smoke_test --config=ci   # BZ-092 (cc_test, unit)
 bazel test  //src/email:email_gems_smoke_test --config=ci   # BZ-093 (rb_test, unit)
 bazel test  //src/flagd-ui:flagd_ui_mix_test --config=ci   # BZ-094 (sh_test / mix test, unit)
+bazel test  //src/quote:quote_composer_smoke_test --config=ci   # BZ-095 (sh_test / composer + autoload, unit)
 bazel test  //src/frontend:lint --config=ci   # BZ-051 (Next ESLint)
-bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test --config=unit
+bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test //src/quote:quote_composer_smoke_test --config=unit
 bazel test  //... --config=unit   # all tests tagged `unit` (see docs/bazel/test-tags.md)
 bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 (checkout)
 bazel build //src/payment:payment_image //src/payment:payment_load --config=ci       # BZ-121 (payment)

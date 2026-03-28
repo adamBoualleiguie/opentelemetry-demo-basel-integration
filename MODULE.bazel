@@ -305,6 +305,18 @@ oci.pull(
     ],
 )
 
+# BZ-095 quote (PHP): matches src/quote/Dockerfile runtime image tag (php:8.4-cli-alpine3.22).
+# Index digest: docker buildx imagetools inspect php:8.4-cli-alpine3.22
+oci.pull(
+    name = "php_84_cli_alpine322",
+    digest = "sha256:1029d5513f254a17f41f8384855cb475a39f786e280cf261b99d2edef711f32d",
+    image = "docker.io/library/php",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
+
 # JVM services (BZ-121): gcr.io/distroless/java{17,21}-debian12:nonroot — index digests (amd64 + arm64).
 oci.pull(
     name = "distroless_java21_debian12_nonroot",
@@ -362,6 +374,9 @@ use_repo(
     "dotnet_aspnet_10",
     "dotnet_aspnet_10_linux_amd64",
     "dotnet_aspnet_10_linux_arm64",
+    "php_84_cli_alpine322",
+    "php_84_cli_alpine322_linux_amd64",
+    "php_84_cli_alpine322_linux_arm64",
     "python_312_slim_bookworm",
     "python_312_slim_bookworm_linux_amd64",
     "python_312_slim_bookworm_linux_arm64",
