@@ -1,0 +1,48 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-096: Expo / React Native — Android-only Bazel (hermetic SDK via @rn_android_sdk), JS checks (tsc + jest).
+
+load("//tools/bazel/rn_android:rn_gradle_apk.bzl", "rn_android_debug_apk")
+
+package(default_visibility = ["//visibility:public"])
+
+# iOS is intentionally excluded from globs. Do not ship node_modules or Gradle outputs.
+_RN_APP_FILES = glob(
+    ["**"],
+    exclude = [
+        "node_modules/**",
+        "ios/**",
+        "android/**/build/**",
+        "android/.gradle/**",
+        ".expo/**",
+        "dist/**",
+        "web-build/**",
+    ],
+)
+
+filegroup(
+    name = "rn_app_srcs",
+    srcs = _RN_APP_FILES,
+)
+
+rn_android_debug_apk(
+    name = "android_debug_apk",
+    srcs = [":rn_app_srcs"],
+    tags = [
+        "manual",
+        "no-sandbox",
+        "requires-network",
+    ],
+)
+
+sh_test(
+    name = "rn_js_checks",
+    srcs = ["run_rn_js_checks.sh"],
+    data = [":rn_app_srcs"],
+    size = "enormous",
+    tags = [
+        "requires-network",
+        "unit",
+    ],
+)

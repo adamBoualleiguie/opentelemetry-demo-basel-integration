@@ -316,6 +316,23 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//tools/bazel/rn_android:extension.bzl%rn_android_sdk": {
+      "general": {
+        "bzlTransitiveDigest": "fj+4WN9BU8hdK0YZSDQZ0fP+D12Qt2jttIF2WCJM8X8=",
+        "usagesDigest": "dwLMKIEzsrvbWEosBk87cg6eUbhUS9EmSICf4QsIK7Q=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "rn_android_sdk": {
+            "bzlFile": "@@//tools/bazel/rn_android:sdk_repo.bzl",
+            "ruleClassName": "rn_android_sdk_repository",
+            "attributes": {}
+          }
+        },
+        "recordedRepoMappingEntries": []
+      }
+    },
     "@@aspect_rules_js~//npm:extensions.bzl%pnpm": {
       "general": {
         "bzlTransitiveDigest": "nDl7AgZVrwfcKT0ZDSRw+W3pGCBTz44s8WwzjLGm7OE=",

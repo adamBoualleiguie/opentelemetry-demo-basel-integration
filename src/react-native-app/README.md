@@ -100,6 +100,40 @@ This will create a `react-native-app.apk` file in the directory where you ran
 the command. If you have an Android emulator running on your machine then you
 can drag and drop this file onto the emulator's window in order to install it.
 
+## Bazel (Android only — **no iOS**)
+
+This package has **Bazel** targets (**BZ-096**) for **continuous checks** and an optional **debug APK** build. **iOS** / **CocoaPods** / **Xcode** are **not** wired in Bazel (by design).
+
+### Hermetic Android SDK vs SDKMAN / host JDK
+
+| Piece | What Bazel uses | Notes |
+|-------|-----------------|--------|
+| **Android SDK + NDK** | **`@rn_android_sdk`** — a **`repository_rule`** in **`tools/bazel/rn_android/sdk_repo.bzl`** downloads **Temurin 17**, **Android cmdline-tools**, then runs **`sdkmanager`** for **API 34**, **build-tools 34.0.0**, **NDK 26.1.10909125** (aligned with **`android/build.gradle`**). | **Linux x86_64 only** today. First resolution can take **tens of minutes** and **~2+ GB** disk; results live under Bazel’s external cache. **Not** your `~/Android/Sdk` unless you ignore this path. |
+| **JDK for Gradle inside `android_debug_apk`** | **`JAVA_HOME=$SDK_BUNDLE/jdk`** from **`@rn_android_sdk`** | **Independent of SDKMAN.** If you use **SDKMAN** for daily development (`gradle`, `java` on **`PATH`**), that is fine for **`npm run android`** / Android Studio — Bazel’s APK rule does **not** read **`~/.sdkman/candidates/java`**. |
+| **Node / npm** | **Host** toolchain (**Node 18+** required by Expo 51; CI uses **22**) | **`npm ci`** runs inside actions; **`requires-network`**. |
+| **Gradle caches** | **`GRADLE_USER_HOME`** and **`NPM_CONFIG_CACHE`** are **temp dirs** inside the action | Avoids polluting **`~/.gradle`**; each build is isolated aside from **`@rn_android_sdk`**. |
+
+### Targets
+
+| Target | Purpose |
+|--------|---------|
+| **`//src/react-native-app:rn_js_checks`** | **`sh_test`**: **`npm ci`**, **`tsc --noEmit`**, **`jest --ci --passWithNoTests`**. Tags **`unit`**, **`requires-network`**, **`size = enormous`**. |
+| **`//src/react-native-app:android_debug_apk`** | **`rn_android_debug_apk`**: copy app → **`npm ci`** → **`./gradlew :app:assembleDebug`** → **`app-debug.apk`**. Tags **`manual`**, **`no-sandbox`**, **`requires-network`**. Triggers **`@rn_android_sdk`** fetch on first use. |
+
+```bash
+# Fast path (CI): JS/TS checks only
+bazel test //src/react-native-app:rn_js_checks --config=ci
+
+# Optional: debug APK (Linux x86_64; long first run while @rn_android_sdk populates)
+bazel build //src/react-native-app:android_debug_apk --config=ci
+```
+
+**Tracked `expo-env.d.ts`:** checked in so **`tsc`** works without **`expo start`** (see **`.gitignore`** comment).
+
+**Alternate build:** **`make build-react-native-android`** / **`android.Dockerfile`** remains the containerized APK path.
+
+---
+
 ## Pointing to another demo environment
 
 By default, the app will point to `EXPO_PUBLIC_FRONTEND_PROXY_PORT` on

@@ -1,0 +1,4 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Hermetic Android SDK extension + Gradle APK rule live under this package (see MODULE.bazel).

@@ -25,6 +25,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
    - [7.3 `src/email` — Ruby (BZ-093)](#73-service-srcemail--ruby-bz-093)  
    - [7.4 `src/flagd-ui` — Elixir / Phoenix (BZ-094)](#74-service-srcflagd-ui--elixir--phoenix-bz-094)  
    - [7.5 `src/quote` — PHP (BZ-095)](#75-service-srcquote--php-bz-095)  
+   - [7.6 `src/react-native-app` — Expo / React Native, Android only (BZ-096)](#76-service-srcreact-native-app--expo--react-native-android-only-bz-096)  
 8. [Epic F — Node: frontend (BZ-051)](#8-epic-f--node-frontend-bz-051)  
 9. [Epic M — OCI images (BZ-120, BZ-121)](#9-epic-m--oci-images-bz-120-bz-121)  
 10. [Epic N — Test taxonomy (BZ-130)](#10-epic-n--test-taxonomy-bz-130)  
@@ -51,6 +52,7 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | **N** | **BZ-130** | Global test tag convention | M3 | Documented; `.bazelrc` examples for filters. Depends on **BZ-013**. |
 | **N** | **BZ-131**–**133** | Cypress, Tracetest, consolidate unit tests | M4–M5 | Out of M3 strict scope; noted for sequencing. |
 | **—** | **BZ-095** | `quote` — PHP / Composer | M3 (this fork) | **`composer_install`** + **`sh_test`** smoke + **`oci_image`** on **`php:8.4-cli-alpine3.22`**; documented in **§7.5** / **§9.13** (not a separate line in upstream backlog — local ID aligned after **BZ-094**). |
+| **—** | **BZ-096** | `react-native-app` — Android (Expo) | M3 (this fork) | Hermetic **`@rn_android_sdk`** (Temurin 17 + **sdkmanager**); **`sh_test` `rn_js_checks`** (**`tsc`** + **`jest`**); **`manual`** **`android_debug_apk`** (**Gradle** **`assembleDebug`**). **iOS not in Bazel.** See **§7.6**. |
 
 **Proto dependencies called out by backlog:** **BZ-032** (Python grpc), **BZ-034** (Java/Kotlin), **BZ-036** (.NET) — these tie M3 services to the central `pb/demo.proto` story from M1 (`docs/bazel/proto-policy.md`).
 
@@ -71,10 +73,11 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | Ruby `email` | M3 (**BZ-093** + **BZ-121** OCI) | **`rules_ruby` 0.24** — portable MRI **3.4.8** (**`version_file = "//src/email:.ruby-version"`**), **`ruby.bundle_fetch`** **`email_bundle`** from **`Gemfile` / `Gemfile.lock`**. **`rb_library` / `rb_binary` `email`**; **`rb_test` `email_gems_smoke_test`** (**`unit`**). **`Gemfile.lock`** **`PLATFORMS`** limited to **`x86_64-linux`** + **`aarch64-linux`** (glibc) so **`bundle install`** under Bazel resolves **grpc** / native gems for Linux; **`google-protobuf`** uses **`force_ruby_platform: true`**. **OCI:** **`email_image`** / **`email_load`** → **`otel/demo-email:bazel`** on **`docker.io/library/ruby:3.4.8-slim-bookworm`** (**`ruby_348_slim_bookworm`** in **`MODULE.bazel`** — Debian **glibc**, distinct from Compose **Alpine** Dockerfile). |
 | Elixir `flagd-ui` | M3 (**BZ-094** + **BZ-121** OCI) | **`mix_release`** (**`//tools/bazel:mix_release.bzl`**) → **`//src/flagd-ui:flagd_ui_publish`** (host **`mix release`**, **`requires-network`**). **`sh_test` `flagd_ui_mix_test`** (**`mix test`**, **`unit`**, **`requires-network`**, **`size = "enormous"`**). **OCI:** **`flagd_ui_image`** / **`flagd_ui_load`** → **`otel/demo-flagd-ui:bazel`** on **`debian:bullseye-20251117-slim`** (**`debian_bullseye_20251117_slim`**). **CI:** **`erlef/setup-beam`** (**Elixir 1.19.3**, **OTP 28.0.2**) + **`build-essential`** / **`git`**. |
 | PHP `quote` | M3 (**BZ-095** + **BZ-121** OCI) | **`composer_install`** (**`//tools/bazel:composer_install.bzl`**) → **`//src/quote:quote_publish`** (host **`composer install`**, **`requires-network`** — no **`composer.lock`**; mirrors **Dockerfile** vendor flags). **`sh_test` `quote_composer_smoke_test`** (**`unit`**, **`requires-network`**, **`size = "enormous"`** — **`vendor/autoload.php`** smoke). **OCI:** **`quote_image`** / **`quote_load`** → **`otel/demo-quote:bazel`** on **`php:8.4-cli-alpine3.22`** (**`php_84_cli_alpine322`**). **CI:** **`shivammathur/setup-php`** (**PHP 8.4** + **Composer**). **Caveat:** **Dockerfile** installs **PECL** extensions (**`opentelemetry`**, **`protobuf`**, …); Bazel base is stock **CLI** image — see **`oci-policy.md`**. |
+| Expo **`react-native-app`** | M3 (**BZ-096**, **Android only**) | **Hermetic** **`@rn_android_sdk`** (**`tools/bazel/rn_android/sdk_repo.bzl`**) — **Temurin 17** + **cmdline-tools** + **`sdkmanager`** (**API 34**, **build-tools 34.0.0**, **NDK 26.1.10909125**); **linux-amd64** only. **`sh_test` `rn_js_checks`**: **`npm ci`**, **`tsc --noEmit`**, **`jest --ci --passWithNoTests`** (**`unit`**, **`requires-network`**). **`rn_android_debug_apk` `android_debug_apk`**: **`npm ci`** + **`./gradlew :app:assembleDebug`** (**`manual`**, **`no-sandbox`**, **`requires-network`**). **JDK for Gradle** inside the APK action comes from **`@rn_android_sdk`**, **not** SDKMAN / **`~/.sdkman`**. **No** **`rules_js`** hub for this app (lockfile stays **`npm`**). **No iOS** targets. **No container image** (mobile APK artifact). |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
 | Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, **.NET `accounting`**, **.NET `cart`**, **Rust `shipping`**, **C++ `currency`**, **Ruby `email`**, **Elixir `flagd-ui`**, and **PHP `quote`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; **Go** uses **distroless static**; **Rust** and **C++ (glibc-linked)** use **distroless cc**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; **.NET** services use **aspnet 10.0** under **`/app`**; **Ruby `email`** uses **`ruby:3.4.8-slim-bookworm`**; **Elixir `flagd-ui`** uses **`debian:bullseye-slim`** + **`mix release`** tarball; **PHP `quote`** uses **`php:8.4-cli-alpine3.22`** + **`composer install`** tree under **`/var/www`**. |
-| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`**, **`//src/currency:currency_proto_smoke_test`**, **`//src/email:email_gems_smoke_test`**, **`//src/flagd-ui:flagd_ui_mix_test`**, **`//src/quote:quote_composer_smoke_test`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
+| Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`//src/shipping:shipping_test`**, **`//src/currency:currency_proto_smoke_test`**, **`//src/email:email_gems_smoke_test`**, **`//src/flagd-ui:flagd_ui_mix_test`**, **`//src/quote:quote_composer_smoke_test`**, **`//src/react-native-app:rn_js_checks`** tagged **`unit`**; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
 
@@ -551,6 +554,72 @@ bazel test //src/quote:quote_composer_smoke_test --config=unit
 
 ---
 
+### 7.6 Service: `src/react-native-app` — Expo / React Native, **Android only** (BZ-096)
+
+| Field | Detail |
+|-------|--------|
+| **Stack** | **Expo 51** / **Expo Router**, **React Native 0.74**, **TypeScript**; **Android** via **Gradle 9.4** wrapper + **React Native Gradle plugin** (invokes **Node** for Metro / **expo export:embed**). |
+| **Build today** | **`npm run android`** / **`expo run:android`**; **Docker** **`android.Dockerfile`** (**`reactnativecommunity/react-native-android`** image). **iOS** uses **Pods** + **Xcode** — **out of scope** for Bazel in this fork. |
+| **Proto** | Generated **`protos/demo.ts`** (**ts-proto**, **gRPC** imports). **`@grpc/grpc-js`** is a **devDependency** so **`tsc --noEmit`** passes in CI without bundling gRPC into the RN runtime. |
+
+**Goals**
+
+1. **Test in CI** without Android Emulator: **`rn_js_checks`** (**`npm ci`**, **`tsc`**, **`jest`** with **`--passWithNoTests`** until real tests exist).  
+2. **Optional APK** on **Linux x86_64** with a **hermetic** SDK + JDK **inside `@rn_android_sdk`**, so developers are **not** required to align **`ANDROID_HOME`** or **SDKMAN’s Java** with the demo — Bazel still uses **host `node` / `npm`** (Expo’s engine is **Node ≥ 18**; CI uses **22**).
+
+**Hermetic `@rn_android_sdk` (what “hermetic” means here)**
+
+- **`MODULE.bazel`** registers **`use_extension("//tools/bazel/rn_android:extension.bzl", "rn_android_sdk")`** → **`use_repo(..., "rn_android_sdk")`**.  
+- **`tools/bazel/rn_android/sdk_repo.bzl`** implements **`rn_android_sdk_repository`**:  
+  - **Downloads** pinned **Temurin 17.0.13+11** (`OpenJDK17U-jdk_x64_linux_hotspot_17.0.13_11.tar.gz`, **SHA-256** pinned).  
+  - **Downloads** pinned **Android cmdline-tools** (`commandlinetools-linux-11076708_latest.zip`, **SHA-256** pinned).  
+  - **Installs** into a single tree under the external repo: **`jdk/`**, **`sdk/`** (via **`sdkmanager`** with **`yes | sdkmanager --licenses`** then package list).  
+  - **Packages** match **`android/build.gradle`**: **`platforms;android-34`**, **`build-tools;34.0.0`**, **`platform-tools`**, **`ndk;26.1.10909125`**.  
+- **Lazy fetch:** nothing is downloaded until a target **depends** on **`@rn_android_sdk//:root`** (today: **`android_debug_apk` only**). **`rn_js_checks`** does **not** touch the Android SDK.  
+- **OS support:** **linux-amd64 only** — the repository rule **`fail()`s** on **macOS** / non-amd64 with a pointer to **Docker** / local Android Studio. Extending **aarch64** or **Darwin** means adding the matching **cmdline-tools** / **JDK** URLs and checksums to **`sdk_repo.bzl`**.
+
+**SDKMAN and host JDK (explicit separation)**
+
+- Many developers install **Java** via **[SDKMAN](https://sdkman.io/)** (`sdk install java …`) for **Gradle**, **Kotlin**, or other JVM tools. **That is unrelated to Bazel’s APK build:**  
+  - **`android_debug_apk`** sets **`JAVA_HOME`** and **`ANDROID_SDK_ROOT`** from **`dirname(@rn_android_sdk//:root)`** — i.e. **`…/jdk`** and **`…/sdk`** inside the external repository.  
+  - **`GRADLE_USER_HOME`** is a **fresh temp directory** per action so the rule does not reuse your **`~/.gradle`** caches (trade-off: colder builds, better isolation).  
+- **Corollary:** you **do not** need to “point Bazel at SDKMAN”. Conversely, **SDKMAN does not replace** **`@rn_android_sdk`** for this target.
+
+**Why `no-sandbox` on `android_debug_apk`**
+
+- **Gradle** reads **many** files under **`ANDROID_SDK_ROOT`** and **NDK** outputs; listing them all as Bazel inputs would be **impractical**. **`tags = ["no-sandbox"]`** allows the tool to read the **pre-fetched** SDK tree while the **app sources** are still **declared** via **`filegroup`** + manifest copy.
+
+**Why `manual`**
+
+- First **`@rn_android_sdk`** resolution can take **a long time** and **large disk**. **CI** runs **`rn_js_checks` only**; **`android_debug_apk`** is for **opt-in** local or dedicated jobs:  
+  `bazel build //src/react-native-app:android_debug_apk`.
+
+**iOS**
+
+- **No** **`bazel build`** / **`bazel test`** targets under **`ios/`**. Continue using **README** iOS sections and **Xcode**.
+
+**What we implemented**
+
+1. **`MODULE.bazel`** — **`rn_android`** module extension + **`use_repo` `rn_android_sdk`**.  
+2. **`tools/bazel/rn_android/sdk_repo.bzl`**, **`extension.bzl`**, **`rn_gradle_apk.bzl`**, **`BUILD.bazel`**.  
+3. **`src/react-native-app/BUILD.bazel`** — **`rn_app_srcs`** (**`glob`** excludes **`ios/**`**, **`node_modules/**`**, build outputs); **`rn_js_checks`**; **`android_debug_apk`**.  
+4. **`src/react-native-app/run_rn_js_checks.sh`**, tracked **`expo-env.d.ts`**, **`.gitignore`** adjusted.  
+5. **`package.json` / `package-lock.json`** — **`@grpc/grpc-js`** devDependency for **`tsc`**.  
+6. **`.github/workflows/checks.yml`** — **`bazel test //src/react-native-app:rn_js_checks`**.
+
+**Verification**
+
+```bash
+bazel test //src/react-native-app:rn_js_checks --config=ci
+bazel test //src/react-native-app:rn_js_checks --config=unit
+# Optional (linux-amd64; long first run):
+# bazel build //src/react-native-app:android_debug_apk --config=ci
+```
+
+**Status in this repository:** **Implemented** (**B** / **T** for Android + JS); **no** Bazel **iOS**; **no** **`oci_image`** (APK artifact only).
+
+---
+
 ## 8. Epic F — Node: frontend (BZ-051)
 
 ### 8.1 Service: `src/frontend`
@@ -905,7 +974,7 @@ bazel test //src/quote:quote_composer_smoke_test --config=ci
 | `slow` | Large timeouts. |
 | `manual` | Not run in CI unless explicitly selected. |
 
-**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, **`sh_test`** (or other runners), or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet). **`//src/email:email_gems_smoke_test`** is tagged **`unit`** (**BZ-093** — Bundler + gem load smoke). **`//src/flagd-ui:flagd_ui_mix_test`** is tagged **`unit`** (**BZ-094** — **`mix test`**, **`requires-network`**). **`//src/quote:quote_composer_smoke_test`** is tagged **`unit`** (**BZ-095** — **`composer install`** + **`vendor/autoload.php`** smoke, **`requires-network`**).
+**Ongoing:** When adding **`py_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, **`sh_test`** (or other runners), or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added. **`//src/shipping:shipping_test`** is tagged **`unit`** (**BZ-090**). **`//src/currency:currency_proto_smoke_test`** is tagged **`unit`** (**BZ-092** — protobuf smoke only; no gRPC **`cc_test`** yet). **`//src/email:email_gems_smoke_test`** is tagged **`unit`** (**BZ-093** — Bundler + gem load smoke). **`//src/flagd-ui:flagd_ui_mix_test`** is tagged **`unit`** (**BZ-094** — **`mix test`**, **`requires-network`**). **`//src/quote:quote_composer_smoke_test`** is tagged **`unit`** (**BZ-095** — **`composer install`** + **`vendor/autoload.php`** smoke, **`requires-network`**). **`//src/react-native-app:rn_js_checks`** is tagged **`unit`** (**BZ-096** — **`npm ci`**, **`tsc`**, **`jest`**, **`requires-network`**).
 
 ---
 
@@ -923,6 +992,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 6c. **BZ-093 / BZ-121** — Ruby **`email`** (**`rules_ruby`**, **`rb_test`**, **`email_image`**) — **done** in this fork (§7.3, §9.11).  
 6d. **BZ-094 / BZ-121** — Elixir **`flagd-ui`** (**`mix_release`**, **`sh_test`**, **`flagd_ui_image`**) — **done** in this fork (§7.4, §9.12).  
 6e. **BZ-095 / BZ-121** — PHP **`quote`** (**`composer_install`**, **`sh_test`**, **`quote_image`**) — **done** in this fork (§7.5, §9.13).  
+6f. **BZ-096** — Expo **`react-native-app`** (**Android only** — **`@rn_android_sdk`**, **`rn_js_checks`**, **`android_debug_apk`**) — **done** in this fork (§7.6).  
 7. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
 
 ---
@@ -951,8 +1021,9 @@ bazel test  //src/currency:currency_proto_smoke_test --config=ci   # BZ-092 (cc_
 bazel test  //src/email:email_gems_smoke_test --config=ci   # BZ-093 (rb_test, unit)
 bazel test  //src/flagd-ui:flagd_ui_mix_test --config=ci   # BZ-094 (sh_test / mix test, unit)
 bazel test  //src/quote:quote_composer_smoke_test --config=ci   # BZ-095 (sh_test / composer + autoload, unit)
+bazel test  //src/react-native-app:rn_js_checks --config=ci   # BZ-096 (npm ci + tsc + jest, unit)
 bazel test  //src/frontend:lint --config=ci   # BZ-051 (Next ESLint)
-bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test //src/quote:quote_composer_smoke_test --config=unit
+bazel test  //src/checkout/money:money_test //src/shipping:shipping_test //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test //src/quote:quote_composer_smoke_test //src/react-native-app:rn_js_checks --config=unit
 bazel test  //... --config=unit   # all tests tagged `unit` (see docs/bazel/test-tags.md)
 bazel build //src/checkout:checkout_image //src/checkout:checkout_load --config=ci   # BZ-121 (checkout)
 bazel build //src/payment:payment_image //src/payment:payment_load --config=ci       # BZ-121 (payment)

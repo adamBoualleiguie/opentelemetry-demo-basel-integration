@@ -210,6 +210,10 @@ npm.npm_translate_lock(
 )
 use_repo(npm, "npm", "npm_frontend")
 
+# BZ-096: React Native Android — hermetic @rn_android_sdk (Temurin 17 + API 34 + NDK 26.x via sdkmanager; linux-amd64).
+rn_android = use_extension("//tools/bazel/rn_android:extension.bzl", "rn_android_sdk")
+use_repo(rn_android, "rn_android_sdk")
+
 # M3 BZ-121: OCI images (rules_oci). Base digest pinned from gcr.io/distroless/static-debian12:nonroot.
 bazel_dep(name = "rules_oci", version = "2.3.0")
 bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
