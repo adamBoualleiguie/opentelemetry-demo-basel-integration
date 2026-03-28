@@ -22,3 +22,10 @@ build:release --announce_rc
 build:integration --announce_rc
 
 test:ci --test_output=errors
+
+# BZ-130 / M3: global test tag convention (see docs/bazel/milestones/m3-completion.md § Epic N).
+# Examples: bazel test //... --config=unit
+test:unit --test_tag_filters=unit,-integration,-e2e,-trace,-slow,-manual
+test:integration --test_tag_filters=integration,-e2e,-trace,-slow,-manual
+test:e2e --test_tag_filters=e2e
+test:trace --test_tag_filters=trace

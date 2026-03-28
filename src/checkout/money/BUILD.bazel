@@ -13,4 +13,5 @@ go_test(
     srcs = ["money_test.go"],
     embed = [":money"],
     deps = ["//pb:demo_go_proto_checkout"],
+    tags = ["unit"],
 )

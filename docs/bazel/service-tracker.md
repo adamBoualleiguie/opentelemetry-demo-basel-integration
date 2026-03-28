@@ -1,6 +1,6 @@
 # Service Bazel migration tracker
 
-Snapshot through **M2** (Go checkout + product-catalog build/test; payment Node `js_binary`). Update as milestones progress.
+Snapshot through **M2** for builds; **M3** playbook and task alignment in **`docs/bazel/milestones/m3-completion.md`**. Update as milestones progress.
 
 Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = Test | **I** = Image | **CI** = CI gated on Bazel for this service
 
@@ -9,7 +9,7 @@ Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = 
 | `src/accounting` | .NET | Dockerfile / `dotnet` | Yes | — | NS |
 | `src/ad` | Java | Gradle / Dockerfile | Yes | — | NS |
 | `src/cart` | .NET | Dockerfile / `dotnet` | Yes | — | NS |
-| `src/checkout` | Go | Dockerfile / `go` | Yes | `//pb:demo_go_proto_checkout` | B/T |
+| `src/checkout` | Go | Dockerfile / `go` | Yes | `//pb:demo_go_proto_checkout` | B/T/I |
 | `src/currency` | C++ | Dockerfile / cmake | Yes | — | NS |
 | `src/email` | Ruby | Dockerfile / bundler | Yes | — | NS |
 | `src/flagd-ui` | Elixir | Dockerfile / mix | Yes | — | NS |
@@ -34,3 +34,7 @@ Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = 
 **CI:** `.github/workflows/checks.yml` job **`bazel_smoke`** (`continue-on-error: true`) builds **`//src/checkout/...`**, **`//src/product-catalog/...`**, **`//src/payment:payment`** and runs Go tests for the two Go services.
 
 Infra/config under `src/` (grafana, jaeger, prometheus, postgresql, otel-collector, flagd) are not listed above; track separately when image rules are introduced.
+
+**M3 (majority services + images):** see **`docs/bazel/milestones/m3-completion.md`** per-service conversion steps and **`docs/bazel/oci-policy.md`** (BZ-120). **BZ-121** pilot: **`//src/checkout:checkout_image`**, **`//src/checkout:checkout_load`** (included under **`bazel build //src/checkout/...`**).
+
+**BZ-130 (test tags):** **`docs/bazel/test-tags.md`**; **`bazel test //... --config=unit`** runs only tests tagged **`unit`** (currently **`//src/checkout/money:money_test`**).

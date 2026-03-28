@@ -79,6 +79,10 @@ Once the images are built and containers are started, visit:
 - **Feature Flags UI**: [http://localhost:8080/feature/](http://localhost:8080/feature/)
 - **Load Generator UI**: [http://localhost:8080/loadgen/](http://localhost:8080/loadgen/)
 
+### Bazel (migration fork)
+
+If you use [Bazel](https://bazel.build/) in this fork, tests are classified with **tags** (`unit`, `integration`, `e2e`, …). Use **`--config=unit`** (defined in **`.bazelrc`**) to run only fast unit tests, or see **`docs/bazel/test-tags.md`** for the full convention and examples.
+
 ## Troubleshooting Common Issues
 
 ### Docker Not Running

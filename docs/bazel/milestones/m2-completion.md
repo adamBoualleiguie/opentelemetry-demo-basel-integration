@@ -17,6 +17,7 @@ This document records **what was implemented** for milestone **M2** from `5-baze
 | **OpenTelemetry in payment** | `require('./opentelemetry.js')` at the top of `index.js` so the SDK loads before other requires when **not** using Docker’s `node --require` (module cache avoids double-initialization if both run). |
 | **Toolchains** | **rules_go 0.59.0** + **gazelle 0.48.0** for **Go 1.25**; **go_sdk.download(1.25.0)**; **aspect_rules_js 2.3.0** + **rules_nodejs** with **Node 22.14.0** (aligned with the payment **Dockerfile** Node 22 line). |
 | **CI (`bazel_smoke`)** | Builds **Go services** and **`//src/payment:payment`**, runs **Go tests**, in addition to M0/M1 targets (still **`continue-on-error: true`**). |
+| **Test tags (BZ-130)** | Go **`go_test`** targets use **`tags = ["unit"]`**; run **`bazel test ... --config=unit`** per **`.bazelrc`**. Documented in **`docs/bazel/test-tags.md`** (**M3** epic N, applied across milestones). |
 
 ---
 
@@ -112,7 +113,8 @@ bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos \
 | `src/payment/BUILD.bazel` | `npm_link_all_packages`, `js_binary` |
 | `src/payment/pnpm-lock.yaml` | rules_js lock input |
 | `pb/BUILD.bazel` | `demo_proto_js` for payment |
-| `.bazelrc` | `GOEXPERIMENT` clearing |
+| `.bazelrc` | `GOEXPERIMENT` clearing; **`test:unit`** / **`test:integration`** (BZ-130) |
+| `docs/bazel/test-tags.md` | BZ-130 tag convention and contributor rules |
 | `.github/workflows/checks.yml` | `bazel_smoke` M2 steps |
 | `docs/bazel/go-toolchain.md` | BZ-042 detail |
 | `docs/bazel/service-tracker.md` | Service-level status |

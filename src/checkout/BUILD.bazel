@@ -1,4 +1,6 @@
+load("@aspect_bazel_lib//lib:tar.bzl", "mtree_mutate", "mtree_spec", "tar")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
@@ -53,4 +55,42 @@ go_binary(
     name = "checkout",
     embed = [":checkout_lib"],
     visibility = ["//visibility:public"],
+)
+
+# --- BZ-121: OCI image (rules_oci) — matches Dockerfile WORKDIR + ENTRYPOINT. ---
+mtree_spec(
+    name = "checkout_mtree_raw",
+    srcs = [":checkout"],
+    out = "checkout_mtree_raw.spec",
+)
+
+mtree_mutate(
+    name = "checkout_mtree",
+    mtree = ":checkout_mtree_raw",
+    package_dir = "usr/src/app",
+    srcs = [":checkout"],
+)
+
+tar(
+    name = "checkout_layer",
+    srcs = [":checkout"],
+    mtree = ":checkout_mtree",
+    out = "checkout_layer.tar",
+)
+
+oci_image(
+    name = "checkout_image",
+    base = "@distroless_static_debian12_nonroot_linux_amd64//:distroless_static_debian12_nonroot_linux_amd64",
+    entrypoint = ["/usr/src/app/checkout"],
+    exposed_ports = ["5050/tcp"],
+    tars = [":checkout_layer"],
+    visibility = ["//visibility:public"],
+    workdir = "/usr/src/app",
+)
+
+# `bazel run //src/checkout:checkout_load` → tarball for `docker load`.
+oci_load(
+    name = "checkout_load",
+    image = ":checkout_image",
+    repo_tags = ["otel/demo-checkout:bazel"],
 )

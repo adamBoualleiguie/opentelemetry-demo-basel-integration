@@ -45,3 +45,46 @@ npm.npm_translate_lock(
     verify_node_modules_ignored = "//:.bazelignore",
 )
 use_repo(npm, "npm")
+
+# M3 BZ-121: OCI images (rules_oci). Base digest pinned from gcr.io/distroless/static-debian12:nonroot.
+bazel_dep(name = "rules_oci", version = "2.3.0")
+bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
+bazel_dep(name = "tar.bzl", version = "0.7.0")
+
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+
+# Toolchains are already registered by the `rules_oci` module itself; a second `oci.toolchains()`
+# here merges into the same extension and duplicates crane repos (Bazel error).
+oci.pull(
+    name = "distroless_static_debian12_nonroot",
+    digest = "sha256:a9329520abc449e3b14d5bc3a6ffae065bdde0f02667fa10880c49b35c109fd1",
+    image = "gcr.io/distroless/static-debian12",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
+use_repo(
+    oci,
+    "distroless_static_debian12_nonroot",
+    "distroless_static_debian12_nonroot_linux_amd64",
+    "distroless_static_debian12_nonroot_linux_arm64",
+    # Created by `rules_oci`'s own module `oci.toolchains()` tag (merged extension); required for visibility from root.
+    "oci_crane_toolchains",
+    "oci_regctl_toolchains",
+)
+
+register_toolchains("@oci_crane_toolchains//:all", "@oci_regctl_toolchains//:all")
+
+# rules_oci / aspect tar need jq, zstd, bsdtar toolchains (single toolchains extension).
+abl_oci = use_extension("@aspect_bazel_lib//lib:extensions.bzl", "toolchains")
+abl_oci.jq()
+abl_oci.zstd()
+use_repo(abl_oci, "jq_toolchains", "zstd_toolchains")
+
+register_toolchains("@jq_toolchains//:all", "@zstd_toolchains//:all")
+
+tar_oci = use_extension("@tar.bzl//tar:extensions.bzl", "toolchains")
+use_repo(tar_oci, "bsd_tar_toolchains")
+
+register_toolchains("@bsd_tar_toolchains//:all")
