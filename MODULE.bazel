@@ -227,6 +227,18 @@ oci.pull(
         "linux/arm64",
     ],
 )
+
+# BZ-080 / BZ-121 accounting: mcr.microsoft.com/dotnet/aspnet:10.0 (matches src/accounting/Dockerfile runtime).
+# Index digest: docker buildx imagetools inspect mcr.microsoft.com/dotnet/aspnet:10.0
+oci.pull(
+    name = "dotnet_aspnet_10",
+    digest = "sha256:a04d1c1d2d26119049494057d80ea6cda25bbd8aef7c444a1fc1ef874fd3955b",
+    image = "mcr.microsoft.com/dotnet/aspnet",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
 use_repo(
     oci,
     "distroless_nodejs22_debian12_nonroot",
@@ -241,6 +253,9 @@ use_repo(
     "distroless_java21_debian12_nonroot",
     "distroless_java21_debian12_nonroot_linux_amd64",
     "distroless_java21_debian12_nonroot_linux_arm64",
+    "dotnet_aspnet_10",
+    "dotnet_aspnet_10_linux_amd64",
+    "dotnet_aspnet_10_linux_arm64",
     "distroless_static_debian12_nonroot",
     "distroless_static_debian12_nonroot_linux_amd64",
     "distroless_static_debian12_nonroot_linux_arm64",

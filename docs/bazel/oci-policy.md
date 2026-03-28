@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** — **`oci_image`** + **`oci_load`** each | Proves Go, Node, Next, Python (**`rules_pkg`** `pkg_tar` + **`py_binary`** runfiles), and JVM (**`java_binary` deploy JAR** + **`pkg_tar`**) paths: digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** — **`oci_image`** + **`oci_load`** each | Proves Go, Node, Next, Python (**`rules_pkg`** `pkg_tar` + **`py_binary`** runfiles), JVM (**`java_binary` deploy JAR** + **`pkg_tar`**), and .NET (**`dotnet publish`** output + **`aspnet`** base) paths: digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -59,6 +59,16 @@ This note records the **chosen direction** for building container images with Ba
 | **Layers** | **`rules_pkg`** **`pkg_tar`** of the implicit **`java_binary` deploy JAR** (`*_deploy.jar`) under **`/usr/src/app/`**; macro **`//tools/bazel:java_oci.bzl`** **`java_deploy_jar_oci`**. |
 | **Runtime** | **`ENTRYPOINT`** **`/usr/bin/java -jar /usr/src/app/<deploy>.jar`**; **`WORKDIR`** **`/usr/src/app`**. **`ad`** exposes **9555/tcp** (demo **AD_PORT**). **`fraud-detection`** is a Kafka consumer — **no** **`exposed_ports`** in the image. |
 | **Caveat** | Upstream Dockerfiles add the **OpenTelemetry Java agent** via **`JAVA_TOOL_OPTIONS`**. Bazel images do **not** bundle the agent by default; add a second **`pkg_tar`** layer or **`env`** on **`oci_image`** if you need parity with **`docker compose`**. |
+
+### .NET (`accounting`)
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | **`//src/accounting:accounting_image`**, **`//src/accounting:accounting_load`** → **`otel/demo-accounting:bazel`**. |
+| **Base** | **`mcr.microsoft.com/dotnet/aspnet`** **10.0** (multi-arch index digest **`sha256:a04d1c1d2d26119049494057d80ea6cda25bbd8aef7c444a1fc1ef874fd3955b`** in **`MODULE.bazel`** as **`dotnet_aspnet_10`**). |
+| **Layers** | **`rules_pkg`** **`pkg_tar`** of **`accounting_publish`** under **`/app`** (**`package_dir = "app"`**). |
+| **Runtime** | **`ENTRYPOINT`** **`./instrument.sh dotnet Accounting.dll`** (**OpenTelemetry .NET auto-instrumentation** from the publish tree), **`WORKDIR`** **`/app`**, **`OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=Accounting.Consumer`**. |
+| **Caveat** | **`src/accounting/Dockerfile`** creates **`/var/log/opentelemetry/dotnet`** and **`chown`** for **`app`**; the Bazel image omits that unless you add another **`pkg_tar`**. Build **`accounting_publish`** needs **.NET 10** on the host and network for NuGet (**`requires-network`**). |
 
 ## Out of scope at BZ-120
 

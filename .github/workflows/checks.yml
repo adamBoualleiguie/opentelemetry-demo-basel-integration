@@ -103,6 +103,10 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.x'
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
       - name: npm install (root dev tools)
         run: npm install
       - name: Install yamllint
@@ -117,6 +121,7 @@ jobs:
           bazelisk build //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc //pb:demo_java_grpc --config=ci
           bazelisk build //src/ad:ad //src/fraud-detection:fraud_detection --config=ci
           bazelisk build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
+          bazelisk build //src/accounting:accounting_publish //src/accounting:accounting_image --config=ci
           bazelisk build //src/checkout/... //src/product-catalog/... //src/payment/... --config=ci
           bazelisk build //src/frontend:frontend_image --config=ci
           bazelisk build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci

@@ -58,11 +58,11 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | Node `payment` | M2 (BZ-050) | **`js_binary`** (M2) + **BZ-121** **`payment_image`** / **`payment_load`** (see §9.3). |
 | Python ×4 | M3 (BZ-060/061) + **BZ-121** OCI | **Buildable:** `rules_python` + dual **`pip.parse`** hubs; **`//pb:demo_py_grpc`**; **`py_binary`** + **`oci_image`** / **`oci_load`** per service (**§4**, **§9.5**). |
 | Java `ad`, Kotlin `fraud-detection` | M3 (BZ-070/071) + **BZ-034** + **BZ-121** | **Built in Bazel:** `//src/ad:ad`, `//src/fraud-detection:fraud_detection`; protos from **`//pb:demo_java_grpc`**; **`oci_image`** / **`oci_load`** **`ad_oci_*`**, **`fraud_detection_oci_*`** (see **§5**, **§9.6**). Gradle/Docker remain alternate entrypoints. **No `java_test` / `kt_jvm_test`** in-tree yet. |
-| .NET `accounting` | M3 (BZ-080) | **Not started**. |
+| .NET `accounting` | M3 (BZ-080 + BZ-121 OCI) | **`dotnet_publish`** → **`//src/accounting:accounting_publish`**; **`pkg_tar`** + **`oci_image`** **`accounting_image`** / **`oci_load`** **`accounting_load`** (**`otel/demo-accounting:bazel`**) on **`mcr.microsoft.com/dotnet/aspnet:10.0`** (digest-pinned **`dotnet_aspnet_10`** in **`MODULE.bazel`**). Host **.NET 10** SDK; **`.bazelrc`** forwards **`PATH`** / **`DOTNET_ROOT`** into actions. **`requires-network`**. No in-tree **`dotnet test`** projects yet. |
 | Rust `shipping` | M3 (BZ-090) | **Not started**. |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, and **JVM `ad` / `fraud-detection`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; JVM uses **distroless Java 21 / 17** + deploy JAR layers. |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, **JVM `ad` / `fraud-detection`**, and **.NET `accounting`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; JVM uses **distroless Java 21 / 17** + deploy JAR layers; accounting uses **aspnet 10.0** + publish output under **`/app`**. |
 | Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
@@ -276,19 +276,36 @@ docker image ls | grep -E 'otel/demo-ad:bazel|otel/demo-fraud-detection:bazel'
 
 | Field | Detail |
 |-------|--------|
-| **Stack** | **.NET** (`Accounting.csproj`, NuGet). |
-| **Build today** | `dotnet publish` in Docker. |
-| **Proto** | **BZ-036** or copy policy — generated C# from `demo.proto` or shared package. |
-| **Backlog** | **BZ-080** — `rules_dotnet` **or** **`genrule`/`run_binary`** wrapping `dotnet publish` with explicit **`outs`**. |
+| **Stack** | **.NET 10** (`Accounting.csproj`, **`net10.0`**), Kafka + EF Core + **Google.Protobuf** + **Grpc.Tools** (`GrpcServices="none"` — messages only). |
+| **Build today** | Docker **`dotnet publish`**; local **`dotnet`** when developing. |
+| **Proto (BZ-036 / `proto-policy.md`)** | Canonical file is **`pb/demo.proto`**. **`Accounting.csproj`** expects **`src/protos/demo.proto`** (Docker **`COPY`** from **`/pb/demo.proto`**). Bazel does **not** commit that path (it is **`.gitignore`d**); the **`dotnet_publish`** rule **copies `//pb:demo.proto`** into a temp tree as **`src/protos/demo.proto`** before **`dotnet restore` / `dotnet publish`**, matching Dockerfile layout and single-source proto policy. C# codegen still runs via **MSBuild `Protobuf` items** + **Grpc.Tools** (same as **`dotnet build`** outside Bazel). |
+| **Backlog** | **BZ-080** — `rules_dotnet` **or** wrapper with explicit outputs. |
 
-**Conversion steps:**
+**What we implemented (wrapper / Starlark rule, not `rules_dotnet`)**
 
-1. Choose **`rules_dotnet`** on BCR vs **wrapper**: wrapper is faster to greenfield; native rules are better long-term.  
-2. If protos: add **`csharp_proto_library`** / gRPC C# rule set consistent with `pb/demo.proto`.  
-3. **`src/accounting/BUILD.bazel`**: `dotnet_binary` or genrule output = publish folder.  
-4. **Tests:** `dotnet test` mapped to `bazel test` when **BZ-081** extends **cart** (M4).
+1. **`//tools/bazel:dotnet_publish.bzl`** — rule **`dotnet_publish`**: writes a small **manifest** of **`(input path, relative dest)`** lines, **`run_shell`** copies sources into **`$$(mktemp -d)`**, adds **`proto`** at **`src/protos/demo.proto`**, then runs **`dotnet restore`** and **`dotnet publish -c Release -o <output dir> /p:TreatWarningsAsErrors=false /p:UseAppHost=false`**. Declares a **`directory` output** (publish folder: **`Accounting.dll`**, deps, **`instrument.sh`** from OpenTelemetry auto-instrumentation package, etc.). **`use_default_shell_env = True`** so **`dotnet`** is resolved from **`PATH`**. Tag **`requires-network`** on the target so **`dotnet restore`** can reach NuGet.  
+2. **`src/accounting/BUILD.bazel`** — **`filegroup`** **`accounting_sources`** + **`dotnet_publish`** **`accounting_publish`** (**`proto = "//pb:demo.proto"`**); **`rules_pkg`** **`pkg_tar`** **`accounting_layer`** (**`package_dir = "app"`**) over **`accounting_publish`**; **`oci_image`** **`accounting_image`** (**`base`** = **`@dotnet_aspnet_10_linux_amd64//:dotnet_aspnet_10_linux_amd64`**, **`workdir`** **`/app`**, **`entrypoint`** **`["./instrument.sh", "dotnet", "Accounting.dll"]`**, OTel **`env`**); **`oci_load`** **`accounting_load`** → **`otel/demo-accounting:bazel`**.  
+3. **Hermeticity trade-off:** the rule uses the **host (or CI) .NET SDK** — same class of assumption as many **`genrule`/`run_binary`** migrations. A future **`rules_dotnet`** + pinned SDK could replace this when **`net10`** support and repo policy align.  
+4. **Tests:** no **`*.Tests.csproj`** in-tree — no **`bazel test`** for accounting yet (**BZ-081** / **`cart`** remains M4).
 
-**Status in this repository:** **Not started**.
+**Prerequisites**
+
+- **SDK:** **.NET 10** (matches **`TargetFramework` = `net10.0`**). **.NET SDK 8.x fails** with **`NETSDK1045`** (“does not support targeting .NET 10.0”). CI: **`actions/setup-dotnet@v4`** with **`dotnet-version: '10.0.x'`** in **`bazel_smoke`**.  
+- **Sandbox / SDK discovery:** **`dotnet_publish`** prefers **`DOTNET_ROOT`**, then **`~/.dotnet`** (real user home via **`getent passwd`** when Bazel uses a temp **`HOME`**), then **`/usr/share/dotnet`**, and only uses a root if **`dotnet --version`** is **10.***. **`.bazelrc`** sets **`--action_env=PATH`** and **`--action_env=DOTNET_ROOT`** so CI’s **`setup-dotnet`** layout is visible inside actions. The rule still sets **`HOME`** / **`DOTNET_CLI_HOME`** under a temp dir for **NuGet** after the SDK is on **`PATH`**.  
+- **Network:** first **`dotnet restore`** per machine/CI needs NuGet access (**`requires-network`** on the target).
+
+**Verification**
+
+```bash
+bazel build //src/accounting:accounting_publish //src/accounting:accounting_image //src/accounting:accounting_load --config=ci
+# Inspect publish outputs (paths vary by config):
+# ls $(bazel info bazel-bin)/src/accounting/accounting_publish
+# Optional: load into Docker
+# bazel run //src/accounting:accounting_load
+# docker image ls | grep otel/demo-accounting
+```
+
+**Status in this repository:** **Implemented** — **`accounting_publish`** (CI smoke) plus **BZ-121-style** **`accounting_image`** / **`accounting_load`**. The stock **`src/accounting/Dockerfile`** creates **`/var/log/opentelemetry/dotnet`** and **`chown`** for **`app`**; the Bazel image does **not** add that directory yet — add a small **`pkg_tar`** if you need identical filesystem parity.
 
 ---
 
@@ -378,7 +395,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), and **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**), and **.NET `accounting`** (**`dotnet publish`** layer + **`mcr.microsoft.com/dotnet/aspnet:10.0`** — **§9.7**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -387,7 +404,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 **Module wiring (`MODULE.bazel`):**
 
 - **`bazel_dep`:** `rules_oci` 2.3.0, `aspect_bazel_lib` 2.21.1, `tar.bzl` 0.7.0, **`rules_pkg`** 1.0.1 (Python service **`pkg_tar`** layers).
-- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
+- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), **`dotnet_aspnet_10`** (**`mcr.microsoft.com/dotnet/aspnet`** **10.0**), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
 - **Why there is no `oci.toolchains()` in the root module:** the **`rules_oci` module’s own `MODULE.bazel` already calls `oci.toolchains()`**. Bzlmod merges extension tags; a second `oci.toolchains()` from the root duplicated crane repositories and broke analysis. The root module still **`use_repo`**-exports **`oci_crane_toolchains`** and **`oci_regctl_toolchains`** and **`register_toolchains(...)`** for them so crane/regctl are visible from this repo.
 - **Supporting toolchains:** `aspect_bazel_lib` **`jq`** + **`zstd`**; **`tar.bzl`** **`bsd_tar_toolchains`** — required by **`rules_oci`** / aspect tar rules.
 
@@ -502,6 +519,27 @@ docker image ls | grep -E 'demo-ad:bazel|demo-fraud-detection:bazel'
 
 **Next (BZ-122 / M4):** align **`component-build-images.yml`**, registry push (**BZ-123**), optional **multi-arch** **`oci_image` `base`** selection.
 
+### 9.7 BZ-121 — Extension: .NET **`accounting`**
+
+**What we added**
+
+1. **`MODULE.bazel`** — **`oci.pull`** **`dotnet_aspnet_10`** for **`mcr.microsoft.com/dotnet/aspnet`** (multi-arch index digest **`sha256:a04d1c1d2d26119049494057d80ea6cda25bbd8aef7c444a1fc1ef874fd3955b`**), with **`use_repo`** for **`dotnet_aspnet_10_linux_amd64`** / **`dotnet_aspnet_10_linux_arm64`** (image **`base`** pins **linux/amd64** today).
+
+2. **`src/accounting/BUILD.bazel`** — **`pkg_tar`** **`accounting_layer`** from **`accounting_publish`** with **`package_dir = "app"`** (matches **`WORKDIR /app`** in **`src/accounting/Dockerfile`**). **`oci_image`** **`accounting_image`**: **`entrypoint`** **`["./instrument.sh", "dotnet", "Accounting.dll"]`**, **`env`** **`OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=Accounting.Consumer`**, **`oci_load`** **`accounting_load`** → **`otel/demo-accounting:bazel`**.
+
+**Verification**
+
+```bash
+bazel build //src/accounting:accounting_image //src/accounting:accounting_load --config=ci
+bazel run //src/accounting:accounting_load
+docker image ls | grep otel/demo-accounting
+```
+
+**Caveats**
+
+- **Log dir:** Dockerfile **`RUN mkdir -p /var/log/opentelemetry/dotnet`** + **`chown`** is **not** in the Bazel layer yet.  
+- **`bazel_smoke`** builds **`accounting_image`** (same pattern as other **`*_image`** targets; **`oci_load`** is optional locally).
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -538,7 +576,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 2. **BZ-051** or **BZ-090** — one “hard” language (Next or Rust) to de-risk.  
 3. **BZ-060 / BZ-061** — Python wave starting with **`recommendation`**.  
 4. **BZ-070 / BZ-071** — JVM (shared Maven pin helps both).  
-5. **BZ-080** — .NET accounting.  
+5. **BZ-080 / BZ-121** — .NET **`accounting`** (**`accounting_publish`** + **`accounting_image`**) — **done** in this fork (§6, §9.7).  
 6. **BZ-130** — **Done** (taxonomy + docs); extend tags as new test rules land.
 
 ---
@@ -551,6 +589,7 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc //pb:demo_java_grpc --config=ci
 bazel build //src/ad:ad //src/fraud-detection:fraud_detection --config=ci
 bazel build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
+bazel build //src/accounting:accounting_publish //src/accounting:accounting_image --config=ci
 bazel build //src/checkout/... //src/product-catalog/... //src/payment:payment --config=ci
 bazel build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci
 bazel build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image //src/llm:llm_image //src/load-generator:load_generator_image --config=ci

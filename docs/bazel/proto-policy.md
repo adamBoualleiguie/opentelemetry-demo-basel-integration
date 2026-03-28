@@ -22,3 +22,4 @@ M1 **does not** add an automatic byte-for-byte diff between Bazel-generated Go a
 ## Where to extend next
 
 - **Python / Java / C++ / TS** codegen under Bazel: see `pb/extra/README.md` and extend `MODULE.bazel` with the relevant language rules when you are ready to pay the analysis/build cost in CI.
+- **.NET (accounting, BZ-080):** **`//pb:demo.proto`** is copied at build time to **`src/protos/demo.proto`** for **`dotnet publish`** (see **`//tools/bazel:dotnet_publish.bzl`**); C# generation stays in **MSBuild** via **`Grpc.Tools`**, aligned with **`docs/bazel/milestones/m3-completion.md`** §6.

@@ -1,0 +1,53 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-080 / BZ-121: .NET accounting — `dotnet publish` + OCI (aspnet:10.0, matches Dockerfile).
+
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//tools/bazel:dotnet_publish.bzl", "dotnet_publish")
+
+filegroup(
+    name = "accounting_sources",
+    srcs = glob(
+        [
+            "*.cs",
+            "*.csproj",
+            "*.slnx",
+            "Directory.Build.props",
+        ],
+    ),
+)
+
+dotnet_publish(
+    name = "accounting_publish",
+    srcs = [":accounting_sources"],
+    csproj = ":Accounting.csproj",
+    proto = "//pb:demo.proto",
+    tags = ["requires-network"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_tar(
+    name = "accounting_layer",
+    srcs = [":accounting_publish"],
+    package_dir = "app",
+)
+
+oci_image(
+    name = "accounting_image",
+    base = "@dotnet_aspnet_10_linux_amd64//:dotnet_aspnet_10_linux_amd64",
+    entrypoint = ["./instrument.sh", "dotnet", "Accounting.dll"],
+    env = {
+        "OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES": "Accounting.Consumer",
+    },
+    tars = [":accounting_layer"],
+    visibility = ["//visibility:public"],
+    workdir = "/app",
+)
+
+oci_load(
+    name = "accounting_load",
+    image = ":accounting_image",
+    repo_tags = ["otel/demo-accounting:bazel"],
+)

@@ -12,6 +12,11 @@ common --cxxopt=-std=c++17
 common --action_env=GOEXPERIMENT=
 common --repo_env=GOEXPERIMENT=
 
+# BZ-080 accounting (net10): pass client PATH + DOTNET_ROOT so ~/.dotnet SDK 10 is visible in actions
+# (distro packages often install SDK 8 under /usr/lib/dotnet first).
+common --action_env=PATH
+common --action_env=DOTNET_ROOT
+
 # --- Profiles (see docs/bazel/milestones/m0-completion.md) ---
 build:dev --announce_rc
 
