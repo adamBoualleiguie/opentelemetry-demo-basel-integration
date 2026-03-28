@@ -56,13 +56,13 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 |------|---------|----------------|
 | Go `checkout`, `product-catalog` | M2 (BZ-040/041) | **Built & tested** under Bazel (M2). M3 uses them for **BZ-121** pilot candidate. |
 | Node `payment` | M2 (BZ-050) | **`js_binary`** (M2) + **BZ-121** **`payment_image`** / **`payment_load`** (see §9.3). |
-| Python ×4 | M3 (BZ-060/061) | **Not started** — no `BUILD.bazel` under those `src/*` trees yet. |
+| Python ×4 | M3 (BZ-060/061) + **BZ-121** OCI | **Buildable:** `rules_python` + dual **`pip.parse`** hubs; **`//pb:demo_py_grpc`**; **`py_binary`** + **`oci_image`** / **`oci_load`** per service (**§4**, **§9.5**). |
 | Java `ad`, Kotlin `fraud-detection` | M3 (BZ-070/071) | **Not started** — Gradle remains source of truth. |
 | .NET `accounting` | M3 (BZ-080) | **Not started**. |
 | Rust `shipping` | M3 (BZ-090) | **Not started**. |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, and **`frontend`**: **`oci_image`** + **`oci_load`** each (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, and the **four Python** services (**`recommendation`**, **`product-reviews`**, **`llm`**, **`load-generator`**): **`oci_image`** + **`oci_load`** each (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). |
 | Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
@@ -103,7 +103,7 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 3. Use **`pip_parse`** (or `compile_pip_requirements`) to turn the lockfile into **`@pypi//`** (or similar) external repos.  
 4. Define a **macro or convention**: `src/<svc>/BUILD.bazel` contains `py_library` + `py_binary` (or `py_console_script_binary`) with `deps` from `@pypi//...`.
 
-**Status:** Not wired in `MODULE.bazel` yet.
+**Status:** **Implemented.** `MODULE.bazel` declares **`bazel_dep(rules_python, 0.40.0)`**, default **`python.toolchain`** **3.12**, and two **`pip.parse`** roots: **`hub_name = "pypi"`** → **`//tools/python:requirements_lock.txt`** (gRPC services + **`llm`**), **`hub_name = "pypi_loadgen"`** → **`//tools/python:requirements_loadgen_lock.txt`** (Locust / Playwright stack). **`use_repo(pip, "pypi", "pypi_loadgen")`**. Pin/refresh: **`tools/python/README.md`** ( **`pip-compile`** on **`requirements.in`** / **`requirements_loadgen.in`**, Python **3.12**).
 
 ---
 
@@ -113,7 +113,7 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 |-------|--------|
 | **Stack** | Python gRPC service, **`requirements.txt`** (grpc, OpenTelemetry, FlagD provider, etc.). |
 | **Build today** | Docker multi-stage; `python` in container. |
-| **Proto** | Consumer (**BZ-032**): generated `*_pb2.py` / gRPC stubs should come from Bazel `proto_library` + `py_proto_library` / `py_grpc_library` (or codegen rule aligned with `pb/demo.proto`). |
+| **Proto** | Consumer (**BZ-032**): shared **`//pb:demo_py_grpc`** (`py_library` over committed **`pb/python/demo_pb2*.py`**, aligned with **`pb/demo.proto`** / **`docs/bazel/proto-policy.md`**). |
 | **Backlog** | **BZ-060** pilot candidate; **BZ-061** must list it as buildable. |
 
 **Conversion steps (target end state):**
@@ -127,7 +127,7 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 5. **`py_test`** for any `tests/` or `*_test.py` with `tags = ["unit"]` where appropriate.  
 6. **CI**: extend `bazel_smoke` or a dedicated job with `bazel build //src/recommendation:...`.
 
-**Status in this repository:** **Not started**.
+**Status in this repository:** **`//src/recommendation:recommendation`** **`py_binary`**; **`recommendation_image`** / **`recommendation_load`** (**§9.5**). No in-tree **`py_test`** yet (nothing to tag).
 
 ---
 
@@ -140,7 +140,7 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 
 **Conversion steps:** Repeat **§4.2** pattern; share the same **`pip_parse`** root if dependency sets overlap, or isolate a second requirements lock for clarity.
 
-**Status in this repository:** **Not started**.
+**Status in this repository:** **`//src/product-reviews:product_reviews`** **`py_binary`**; **`product_reviews_image`** / **`product_reviews_load`** (**§9.5**).
 
 ---
 
@@ -149,11 +149,11 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 | Field | Detail |
 |-------|--------|
 | **Stack** | Python; may pull heavier ML stacks — watch wheel/platform tags in `pip_parse`. |
-| **Proto** | Per service README / imports; if no gRPC, proto step may be minimal. |
+| **Proto** | None in application code; no **`demo_py_grpc`** dep. |
 
 **Conversion steps:** Same as §4.2; validate **large deps** (GPU optional, etc.) against sandbox/network rules in CI.
 
-**Status in this repository:** **Not started**.
+**Status in this repository:** **`//src/llm:llm`** **`py_binary`**; **`llm_image`** / **`llm_load`** (**§9.5**). JSON assets via **`data = glob(...)`** and paths resolved relative to **`__file__`** (compatible with Docker’s flat copy). Lock: **`@pypi`**.
 
 ---
 
@@ -170,7 +170,7 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 2. `py_binary` entrypoint = Locust or a thin wrapper script matching `Dockerfile` **CMD**.  
 3. Tag tests **`manual`** or **`integration`** if they need live services (**BZ-130** alignment).
 
-**Status in this repository:** **Not started**.
+**Status in this repository:** **`//src/load-generator:load_generator`** **`py_binary`**; **`load_generator_image`** / **`load_generator_load`** (**§9.5** — **no Playwright browsers** in the Bazel image; see **`docs/bazel/oci-policy.md`**). Lock: **`@pypi_loadgen`**.
 
 ---
 
@@ -327,7 +327,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** pilots on **checkout** (Go), **payment** (Node / **js_image_layer**), and **frontend** (Next standalone + **nodejs24** distroless).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), and **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -335,8 +335,8 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 **Module wiring (`MODULE.bazel`):**
 
-- **`bazel_dep`:** `rules_oci` 2.3.0, `aspect_bazel_lib` 2.21.1, `tar.bzl` 0.7.0 (layer tar + toolchains).
-- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout) and **`distroless_nodejs22_debian12_nonroot`** (payment), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
+- **`bazel_dep`:** `rules_oci` 2.3.0, `aspect_bazel_lib` 2.21.1, `tar.bzl` 0.7.0, **`rules_pkg`** 1.0.1 (Python service **`pkg_tar`** layers).
+- **`oci.pull`** defines digest-pinned bases: **`distroless_static_debian12_nonroot`** (checkout), **`distroless_nodejs22_debian12_nonroot`** / **`distroless_nodejs24_debian13_nonroot`** (Node), **`python_312_slim_bookworm`** (Python), each for **`linux/amd64`** and **`linux/arm64`** where applicable (see `MODULE.bazel` for digests).
 - **Why there is no `oci.toolchains()` in the root module:** the **`rules_oci` module’s own `MODULE.bazel` already calls `oci.toolchains()`**. Bzlmod merges extension tags; a second `oci.toolchains()` from the root duplicated crane repositories and broke analysis. The root module still **`use_repo`**-exports **`oci_crane_toolchains`** and **`oci_regctl_toolchains`** and **`register_toolchains(...)`** for them so crane/regctl are visible from this repo.
 - **Supporting toolchains:** `aspect_bazel_lib` **`jq`** + **`zstd`**; **`tar.bzl`** **`bsd_tar_toolchains`** — required by **`rules_oci`** / aspect tar rules.
 
@@ -402,6 +402,27 @@ bazel run //src/frontend:frontend_load
 docker image ls | grep otel/demo-frontend
 ```
 
+### 9.5 BZ-121 — Extension: Python services (**`rules_pkg`** + **`py_binary`** runfiles)
+
+**What we added**
+
+1. **`MODULE.bazel`** — **`bazel_dep(rules_pkg, 1.0.1)`** and **`oci.pull`** for **`docker.io/library/python`** (**`python_312_slim_bookworm`**, multi-arch index digest **`sha256:31c0807da611e2e377a2e9b566ad4eb038ac5a5838cbbbe6f2262259b5dc77a0** — same tag as **`3.12-slim-bookworm`** from **`docker buildx imagetools inspect`**). **`use_repo`** exports **`python_312_slim_bookworm_{linux_amd64,linux_arm64}`**.
+
+2. **`tools/bazel/py_oci.bzl`** — macro **`py_binary_oci`**: **`pkg_tar`** with **`include_runfiles = True`**, **`package_dir = "app"`**, then **`oci_image`** (**`base`** = **`@python_312_slim_bookworm_linux_amd64//:...`**), **`entrypoint`** = **`/app/<py_binary name>`**, **`workdir`** = **`/app`**, **`oci_load`** with **`otel/demo-*:bazel`** tags.
+
+3. **Per-service `BUILD.bazel`** — **`recommendation`**, **`product_reviews`**, **`llm`**, **`load_generator`** each gain **`*_image`** / **`*_load`**. **Exposed ports** match **`.env`**: **9001**, **3551**, **8000**, **8089** (load-generator Locust web).
+
+4. **Dockerfile parity** — gRPC Python Dockerfiles use **`opentelemetry-instrument`**; the **`py_binary`** already configures OTel in-process, so the Bazel image entrypoint is the stub only. **`load-generator`**: Bazel image does **not** run **`playwright install`**; Playwright-based users need the stock **`Dockerfile`** or an extra layer.
+
+**Verification**
+
+```bash
+bazel build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image \
+  //src/llm:llm_image //src/load-generator:load_generator_image --config=ci
+bazel run //src/llm:llm_load
+docker image ls | grep 'otel/demo-llm'
+```
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -426,7 +447,7 @@ docker image ls | grep otel/demo-frontend
 | `slow` | Large timeouts. |
 | `manual` | Not run in CI unless explicitly selected. |
 
-**Ongoing:** When adding **`py_test`**, **`rust_test`**, or **`js_test`** under M3+, apply the same tags; Gazelle does not add tags automatically.
+**Ongoing:** When adding **`py_test`**, **`rust_test`**, or **`js_test`** under M3+, apply the same tags (**`unit`** / **`manual`** / **`integration`** per **`docs/bazel/test-tags.md`**); Gazelle does not add tags automatically. The four Python services above have **no** in-tree tests yet, so no **`py_test`** targets were added.
 
 ---
 
@@ -448,8 +469,10 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 **Already available (M2 + M1):**
 
 ```bash
-bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos --config=ci
+bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc --config=ci
 bazel build //src/checkout/... //src/product-catalog/... //src/payment:payment --config=ci
+bazel build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci
+bazel build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image //src/llm:llm_image //src/load-generator:load_generator_image --config=ci
 bazel test  //src/checkout/... //src/product-catalog/... --config=ci
 bazel test  //src/frontend:lint --config=ci   # BZ-051 (Next ESLint)
 bazel test  //src/checkout/money:money_test --config=unit
@@ -459,10 +482,9 @@ bazel build //src/payment:payment_image //src/payment:payment_load --config=ci  
 bazel build //src/frontend:frontend_image //src/frontend:frontend_load --config=ci   # BZ-121 (frontend)
 ```
 
-**When M3 services land, extend with:**
+**Still to add (other M3 backlog items):**
 
 ```bash
-bazel build //src/recommendation:...    # after BZ-060/061
 bazel build //src/shipping:...         # after BZ-090
 # etc.
 ```

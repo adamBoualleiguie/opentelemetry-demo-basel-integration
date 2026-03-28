@@ -12,6 +12,29 @@ module(
 # toolchains; see //pb/extra for optional builds.)
 bazel_dep(name = "protobuf", version = "29.3")
 
+# M3 BZ-060/BZ-061: Python services (pip hubs + hermetic 3.12 toolchain).
+bazel_dep(name = "rules_python", version = "0.40.0")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    configure_coverage_tool = False,
+    is_default = True,
+    python_version = "3.12",
+)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "pypi",
+    python_version = "3.12",
+    requirements_lock = "//tools/python:requirements_lock.txt",
+)
+pip.parse(
+    hub_name = "pypi_loadgen",
+    python_version = "3.12",
+    requirements_lock = "//tools/python:requirements_loadgen_lock.txt",
+)
+use_repo(pip, "pypi", "pypi_loadgen")
+
 # >=0.56: Go 1.25 stdlib (no invalid GOEXPERIMENT nocoverageredesign / coverageredesign).
 bazel_dep(name = "rules_go", version = "0.59.0")
 bazel_dep(name = "gazelle", version = "0.48.0")
@@ -44,6 +67,7 @@ npm.npm_translate_lock(
     pnpm_lock = "//src/payment:pnpm-lock.yaml",
     verify_node_modules_ignored = "//:.bazelignore",
 )
+
 # M3 BZ-051: Next.js frontend — separate lockfile/repo from payment (no workspace merge).
 # Exclude cypress postinstall so Bazel does not download the Cypress binary (e2e is BZ-131 / Makefile).
 npm.npm_translate_lock(
@@ -53,6 +77,7 @@ npm.npm_translate_lock(
         "//src/frontend:pnpm-lock.yaml",
     ],
     lifecycle_hooks_exclude = ["cypress"],
+    pnpm_lock = "//src/frontend:pnpm-lock.yaml",
     # Hoist runtime frameworks so Next’s parallel page-data workers resolve a single React/Next/styled-components.
     public_hoist_packages = {
         "@openfeature/react-sdk": ["src/frontend"],
@@ -62,7 +87,6 @@ npm.npm_translate_lock(
         "react-dom": ["src/frontend"],
         "styled-components": ["src/frontend"],
     },
-    pnpm_lock = "//src/frontend:pnpm-lock.yaml",
     verify_node_modules_ignored = "//:.bazelignore",
 )
 use_repo(npm, "npm", "npm_frontend")
@@ -71,6 +95,9 @@ use_repo(npm, "npm", "npm_frontend")
 bazel_dep(name = "rules_oci", version = "2.3.0")
 bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
 bazel_dep(name = "tar.bzl", version = "0.7.0")
+
+# Python OCI layers: pkg_tar(include_runfiles) over py_binary outputs.
+bazel_dep(name = "rules_pkg", version = "1.0.1")
 
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 
@@ -85,6 +112,7 @@ oci.pull(
         "linux/arm64",
     ],
 )
+
 # BZ-121 payment: same runtime as src/payment/Dockerfile final stage (gcr.io/distroless/nodejs22-debian12:nonroot).
 # Index digest (linux/amd64 + linux/arm64); Bazel fetcher works reliably vs Docker Hub anonymous pulls.
 oci.pull(
@@ -96,6 +124,7 @@ oci.pull(
         "linux/arm64",
     ],
 )
+
 # Frontend final stage matches src/frontend/Dockerfile (gcr.io/distroless/nodejs24-debian13:nonroot).
 # Index digest from: docker buildx imagetools inspect ...:nonroot
 oci.pull(
@@ -107,18 +136,33 @@ oci.pull(
         "linux/arm64",
     ],
 )
+
+# Python services (BZ-121 extension): docker.io/library/python:3.12-slim-bookworm index digest
+# (linux/amd64 + linux/arm64); `docker buildx imagetools inspect python:3.12-slim-bookworm`.
+oci.pull(
+    name = "python_312_slim_bookworm",
+    digest = "sha256:31c0807da611e2e377a2e9b566ad4eb038ac5a5838cbbbe6f2262259b5dc77a0",
+    image = "docker.io/library/python",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
 use_repo(
     oci,
-    "distroless_static_debian12_nonroot",
-    "distroless_static_debian12_nonroot_linux_amd64",
-    "distroless_static_debian12_nonroot_linux_arm64",
     "distroless_nodejs22_debian12_nonroot",
     "distroless_nodejs22_debian12_nonroot_linux_amd64",
     "distroless_nodejs22_debian12_nonroot_linux_arm64",
     "distroless_nodejs24_debian13_nonroot",
     "distroless_nodejs24_debian13_nonroot_linux_amd64",
     "distroless_nodejs24_debian13_nonroot_linux_arm64",
-    # Created by `rules_oci`'s own module `oci.toolchains()` tag (merged extension); required for visibility from root.
+    "distroless_static_debian12_nonroot",
+    "distroless_static_debian12_nonroot_linux_amd64",
+    "distroless_static_debian12_nonroot_linux_arm64",
+    "python_312_slim_bookworm",
+    "python_312_slim_bookworm_linux_amd64",
+    "python_312_slim_bookworm_linux_arm64",
+    # Required for register_toolchains below (rules_oci crane/regctl).
     "oci_crane_toolchains",
     "oci_regctl_toolchains",
 )

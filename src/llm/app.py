@@ -18,10 +18,20 @@ app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
 
 product_review_summaries = None
-product_review_summaries_file_path = "./product-review-summaries.json"
-
 inaccurate_product_review_summaries = None
-inaccurate_product_review_summaries_file_path = "./inaccurate-product-review-summaries.json"
+
+def _summary_json_path(filename: str) -> str:
+    """Resolve JSON next to this module (Bazel runfiles) or flat layout (Docker)."""
+    base = os.path.dirname(os.path.abspath(__file__))
+    nested = os.path.join(base, "product-review-summaries", filename)
+    if os.path.isfile(nested):
+        return nested
+    return os.path.join(base, filename)
+
+product_review_summaries_file_path = _summary_json_path("product-review-summaries.json")
+inaccurate_product_review_summaries_file_path = _summary_json_path(
+    "inaccurate-product-review-summaries.json"
+)
 
 def load_product_review_summaries(file_path):
     try:

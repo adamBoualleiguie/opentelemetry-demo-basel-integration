@@ -1,0 +1,41 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-061: gRPC product-reviews + DB (deps from //tools/python:requirements_lock.txt).
+
+load("//tools/bazel:py_oci.bzl", "py_binary_oci")
+load("@rules_python//python:defs.bzl", "py_binary")
+
+py_binary(
+    name = "product_reviews",
+    srcs = [
+        "database.py",
+        "metrics.py",
+        "product_reviews_server.py",
+    ],
+    main = "product_reviews_server.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pb:demo_py_grpc",
+        "@pypi//grpcio:grpcio",
+        "@pypi//grpcio_health_checking:grpcio_health_checking",
+        "@pypi//openai:openai",
+        "@pypi//openfeature_hooks_opentelemetry:openfeature_hooks_opentelemetry",
+        "@pypi//openfeature_provider_flagd:openfeature_provider_flagd",
+        "@pypi//openfeature_sdk:openfeature_sdk",
+        "@pypi//opentelemetry_api:opentelemetry_api",
+        "@pypi//opentelemetry_exporter_otlp_proto_grpc:opentelemetry_exporter_otlp_proto_grpc",
+        "@pypi//opentelemetry_sdk:opentelemetry_sdk",
+        "@pypi//protobuf:protobuf",
+        "@pypi//psycopg2_binary:psycopg2_binary",
+        "@pypi//simplejson:simplejson",
+    ],
+)
+
+py_binary_oci(
+    name = "product_reviews",
+    binary = ":product_reviews",
+    entrypoint_basename = "product_reviews",
+    exposed_ports = ["3551/tcp"],
+    repo_tag = "otel/demo-product-reviews:bazel",
+)

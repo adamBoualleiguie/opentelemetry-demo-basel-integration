@@ -38,6 +38,7 @@ next-env.d.ts
 vendor/
 composer.lock
 .venv
+.venv-pip
 .dockerhub.env
 .ghcr.env
 

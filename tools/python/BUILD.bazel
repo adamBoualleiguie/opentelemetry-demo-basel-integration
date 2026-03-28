@@ -1,0 +1,9 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+exports_files([
+    "requirements.in",
+    "requirements_lock.txt",
+    "requirements_loadgen.in",
+    "requirements_loadgen_lock.txt",
+])

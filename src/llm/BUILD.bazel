@@ -1,0 +1,28 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-061: mock OpenAI-compatible HTTP server (deps from //tools/python:requirements_lock.txt).
+
+load("//tools/bazel:py_oci.bzl", "py_binary_oci")
+load("@rules_python//python:defs.bzl", "py_binary")
+
+py_binary(
+    name = "llm",
+    srcs = ["app.py"],
+    data = glob(["product-review-summaries/*.json"]),
+    main = "app.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pypi//flask:flask",
+        "@pypi//openfeature_provider_flagd:openfeature_provider_flagd",
+        "@pypi//openfeature_sdk:openfeature_sdk",
+    ],
+)
+
+py_binary_oci(
+    name = "llm",
+    binary = ":llm",
+    entrypoint_basename = "llm",
+    exposed_ports = ["8000/tcp"],
+    repo_tag = "otel/demo-llm:bazel",
+)

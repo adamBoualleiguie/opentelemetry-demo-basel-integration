@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) — **`oci_image`** + **`oci_load`** each | Proves Go, Node service, and Next standalone paths: digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** — **`oci_image`** + **`oci_load`** each | Proves Go, Node, Next, and Python (**`rules_pkg`** `pkg_tar` + **`py_binary`** runfiles) paths: digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -39,6 +39,16 @@ This note records the **chosen direction** for building container images with Ba
 | **Runtime** | **`WORKDIR`** **`/app`**, **`/nodejs/bin/node`**, **`--require=./Instrumentation.js`**, **`server.js`**, **8080/tcp**. |
 
 **`next build`** uses **`tags = ["manual", "no-sandbox"]`** (standalone symlink tracing). Narrative, Connect/protobuf lock notes, and troubleshooting: **`docs/bazel/milestones/m3-completion.md`** §8–§9.
+
+### Python (`recommendation`, `product-reviews`, `llm`, `load-generator`)
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | `//src/recommendation:recommendation_{image,load}` → **`otel/demo-recommendation:bazel`**; **`product_reviews_{image,load}`** → **`otel/demo-product-reviews:bazel`**; **`llm_{image,load}`** → **`otel/demo-llm:bazel`**; **`load_generator_{image,load}`** → **`otel/demo-load-generator:bazel`**. |
+| **Base** | **`docker.io/library/python`** **`3.12-slim-bookworm`** (multi-arch index digest in **`MODULE.bazel`** as **`python_312_slim_bookworm`**). |
+| **Layers** | **`rules_pkg`** **`pkg_tar`** with **`include_runfiles = True`** on each **`py_binary`**; files under **`/app/<name>`** + **`/app/<name>.runfiles/`**; macro **`//tools/bazel:py_oci.bzl`** **`py_binary_oci`**. |
+| **Runtime** | **`ENTRYPOINT`** **`/app/<py_binary name>`**; **`WORKDIR`** **`/app`**. Ports align with **`.env`** defaults (**9001**, **3551**, **8000**, **8089**). |
+| **Caveat** | **`load-generator`**: Bazel image includes Locust + Playwright **Python** deps only — **not** **`playwright install`** browsers; use **`src/load-generator/Dockerfile`** for full Playwright parity. |
 
 ## Out of scope at BZ-120
 

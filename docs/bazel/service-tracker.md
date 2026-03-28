@@ -1,6 +1,6 @@
 # Service Bazel migration tracker
 
-Snapshot through **M3** frontend OCI; playbook in **`docs/bazel/milestones/m3-completion.md`**. Update as milestones progress.
+Snapshot through **M3** frontend OCI + Python **`py_binary`** wave; playbook in **`docs/bazel/milestones/m3-completion.md`**. Update as milestones progress.
 
 Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = Test | **I** = Image | **CI** = CI gated on Bazel for this service
 
@@ -18,23 +18,23 @@ Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = 
 | `src/frontend-proxy` | Envoy | Dockerfile | No | — | NS |
 | `src/image-provider` | nginx | Dockerfile | No | — | NS |
 | `src/kafka` | infra | Dockerfile | No | — | NS |
-| `src/llm` | Python | Dockerfile | No | — | NS |
-| `src/load-generator` | Python | Dockerfile | No | — | NS |
+| `src/llm` | Python | Dockerfile | No | — | B/I |
+| `src/load-generator` | Python | Dockerfile | No | — | B/I |
 | `src/opensearch` | infra | Dockerfile | No | — | NS |
 | `src/payment` | Node | Dockerfile / npm | Yes | — | B/I |
 | `src/product-catalog` | Go | Dockerfile / `go` | Yes | `//pb:demo_go_proto_product_catalog` | B/T |
-| `src/product-reviews` | Python | Dockerfile | Yes | — | NS |
+| `src/product-reviews` | Python | Dockerfile | Yes | `//pb:demo_py_grpc` | B/I |
 | `src/quote` | PHP | Dockerfile | Yes | — | NS |
 | `src/react-native-app` | TS/RN | npm / Gradle (Android) | Yes | — | NS |
-| `src/recommendation` | Python | Dockerfile | Yes | — | NS |
+| `src/recommendation` | Python | Dockerfile | Yes | `//pb:demo_py_grpc` | B |
 | `src/shipping` | Rust | Dockerfile / cargo | Yes | — | NS |
 
 **Shared:** `pb/demo.proto` → `//pb:demo_proto` (all RPC services in one file).
 
-**CI:** `.github/workflows/checks.yml` job **`bazel_smoke`** (`continue-on-error: true`) builds **`//src/checkout/...`**, **`//src/product-catalog/...`**, **`//src/payment/...`** (includes **`payment_image`** / **`payment_load`**), **`//src/frontend:frontend_image`**, runs Go tests for the two Go services, and runs **`bazel test //src/frontend:lint`** (**BZ-051**).
+**CI:** `.github/workflows/checks.yml` job **`bazel_smoke`** (`continue-on-error: true`) builds **`//src/checkout/...`**, **`//src/product-catalog/...`**, **`//src/payment/...`** (includes **`payment_image`**), **`//src/frontend:frontend_image`**, **`//pb:demo_py_grpc`**, the four Python **`py_binary`** targets and their **`*_image`** targets, runs Go tests for the two Go services, and runs **`bazel test //src/frontend:lint`** (**BZ-051**).
 
 Infra/config under `src/` (grafana, jaeger, prometheus, postgresql, otel-collector, flagd) are not listed above; track separately when image rules are introduced.
 
-**M3 (majority services + images):** see **`docs/bazel/milestones/m3-completion.md`** and **`docs/bazel/oci-policy.md`** (BZ-120). **BZ-121:** **`//src/checkout:checkout_{image,load}`**, **`//src/payment:payment_{image,load}`** (wildcard builds), **`//src/frontend:frontend_{image,load}`** (explicit target — **`next_build`** / image rules are **`manual`**).
+**M3 (majority services + images):** see **`docs/bazel/milestones/m3-completion.md`** and **`docs/bazel/oci-policy.md`** (BZ-120). **BZ-121:** **`checkout`**, **`payment`**, **`frontend`**, and Python **`recommendation`**, **`product-reviews`**, **`llm`**, **`load-generator`** each have **`*_{image,load}`**; **`next_build`** / some frontend prep remain **`manual`** where tagged.
 
 **BZ-130 (test tags):** **`docs/bazel/test-tags.md`**; **`bazel test //... --config=unit`** runs only tests tagged **`unit`** (currently **`//src/checkout/money:money_test`**).

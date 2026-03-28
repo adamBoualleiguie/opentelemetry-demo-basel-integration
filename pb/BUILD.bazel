@@ -4,6 +4,7 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_python//python:defs.bzl", "py_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -21,6 +22,21 @@ js_library(
 proto_library(
     name = "demo_proto",
     srcs = ["demo.proto"],
+)
+
+# BZ-032: Python gRPC stubs for demo.proto (committed outputs under python/; keep in sync with make/docker codegen).
+py_library(
+    name = "demo_py_grpc",
+    srcs = [
+        "python/demo_pb2.py",
+        "python/demo_pb2_grpc.py",
+    ],
+    imports = ["python"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pypi//grpcio:grpcio",
+        "@pypi//protobuf:protobuf",
+    ],
 )
 
 # BZ-031: Go + gRPC (protoc-gen-go + protoc-gen-go-grpc via rules_go).

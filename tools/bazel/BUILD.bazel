@@ -1,0 +1,4 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Package for Starlark helpers loaded by service BUILD files (e.g. py_oci.bzl).

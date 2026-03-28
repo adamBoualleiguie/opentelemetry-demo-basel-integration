@@ -1,0 +1,45 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-061: Locust load generator (separate pip hub: //tools/python:requirements_loadgen_lock.txt).
+
+load("//tools/bazel:py_oci.bzl", "py_binary_oci")
+load("@rules_python//python:defs.bzl", "py_binary")
+
+py_binary(
+    name = "load_generator",
+    srcs = [
+        "locustfile.py",
+        "run_locust.py",
+    ],
+    data = ["people.json"],
+    main = "run_locust.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pypi_loadgen//grpcio:grpcio",
+        "@pypi_loadgen//locust:locust",
+        "@pypi_loadgen//locust_plugins:locust_plugins",
+        "@pypi_loadgen//openfeature_hooks_opentelemetry:openfeature_hooks_opentelemetry",
+        "@pypi_loadgen//openfeature_provider_ofrep:openfeature_provider_ofrep",
+        "@pypi_loadgen//openfeature_sdk:openfeature_sdk",
+        "@pypi_loadgen//opentelemetry_api:opentelemetry_api",
+        "@pypi_loadgen//opentelemetry_exporter_otlp_proto_grpc:opentelemetry_exporter_otlp_proto_grpc",
+        "@pypi_loadgen//opentelemetry_instrumentation:opentelemetry_instrumentation",
+        "@pypi_loadgen//opentelemetry_instrumentation_jinja2:opentelemetry_instrumentation_jinja2",
+        "@pypi_loadgen//opentelemetry_instrumentation_logging:opentelemetry_instrumentation_logging",
+        "@pypi_loadgen//opentelemetry_instrumentation_requests:opentelemetry_instrumentation_requests",
+        "@pypi_loadgen//opentelemetry_instrumentation_system_metrics:opentelemetry_instrumentation_system_metrics",
+        "@pypi_loadgen//opentelemetry_instrumentation_urllib3:opentelemetry_instrumentation_urllib3",
+        "@pypi_loadgen//opentelemetry_sdk:opentelemetry_sdk",
+        "@pypi_loadgen//playwright:playwright",
+    ],
+)
+
+# Locust UI + deps only; Playwright browsers are not installed (use Dockerfile for full parity).
+py_binary_oci(
+    name = "load_generator",
+    binary = ":load_generator",
+    entrypoint_basename = "load_generator",
+    exposed_ports = ["8089/tcp"],
+    repo_tag = "otel/demo-load-generator:bazel",
+)

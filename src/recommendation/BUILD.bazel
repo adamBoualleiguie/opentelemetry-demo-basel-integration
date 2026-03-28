@@ -1,0 +1,37 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-060 pilot + BZ-061: gRPC recommendation service (deps from //tools/python:requirements_lock.txt).
+
+load("//tools/bazel:py_oci.bzl", "py_binary_oci")
+load("@rules_python//python:defs.bzl", "py_binary")
+
+py_binary(
+    name = "recommendation",
+    srcs = [
+        "metrics.py",
+        "recommendation_server.py",
+    ],
+    main = "recommendation_server.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pb:demo_py_grpc",
+        "@pypi//grpcio:grpcio",
+        "@pypi//grpcio_health_checking:grpcio_health_checking",
+        "@pypi//openfeature_hooks_opentelemetry:openfeature_hooks_opentelemetry",
+        "@pypi//openfeature_provider_flagd:openfeature_provider_flagd",
+        "@pypi//openfeature_sdk:openfeature_sdk",
+        "@pypi//opentelemetry_api:opentelemetry_api",
+        "@pypi//opentelemetry_exporter_otlp_proto_grpc:opentelemetry_exporter_otlp_proto_grpc",
+        "@pypi//opentelemetry_sdk:opentelemetry_sdk",
+    ],
+)
+
+# BZ-121: OCI — python:3.12-slim-bookworm + py_binary runfiles (rules_pkg).
+py_binary_oci(
+    name = "recommendation",
+    binary = ":recommendation",
+    entrypoint_basename = "recommendation",
+    exposed_ports = ["9001/tcp"],
+    repo_tag = "otel/demo-recommendation:bazel",
+)
