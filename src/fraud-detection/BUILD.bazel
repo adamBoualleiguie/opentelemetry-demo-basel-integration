@@ -1,0 +1,44 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-071: Kotlin fraud-detection — consumes Java protos from //pb; deploy JAR via default java_binary layout.
+
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("//tools/bazel:java_oci.bzl", "java_deploy_jar_oci")
+
+kt_jvm_library(
+    name = "fraud_detection_lib",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    resources = glob(["src/main/resources/**"]),
+    deps = [
+        "//pb:demo_java_grpc",
+        "@maven//:com_google_protobuf_protobuf_kotlin",
+        "@maven//:dev_openfeature_contrib_providers_flagd",
+        "@maven//:dev_openfeature_sdk",
+        "@maven//:io_opentelemetry_opentelemetry_api",
+        "@maven//:io_opentelemetry_opentelemetry_extension_annotations",
+        "@maven//:io_opentelemetry_opentelemetry_sdk",
+        "@maven//:javax_annotation_javax_annotation_api",
+        "@maven//:org_apache_kafka_kafka_clients",
+        "@maven//:org_apache_logging_log4j_log4j_api",
+        "@maven//:org_apache_logging_log4j_log4j_core",
+        "@maven//:org_slf4j_slf4j_api",
+    ],
+)
+
+java_binary(
+    name = "fraud_detection",
+    main_class = "frauddetection.MainKt",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":fraud_detection_lib"],
+)
+
+# BZ-121: Kafka worker — no HTTP port; base matches src/fraud-detection/Dockerfile distroless java17.
+java_deploy_jar_oci(
+    name = "fraud_detection_oci",
+    base = "@distroless_java17_debian12_nonroot_linux_amd64//:distroless_java17_debian12_nonroot_linux_amd64",
+    deploy_jar = ":fraud_detection_deploy.jar",
+    jar_name = "fraud_detection_deploy.jar",
+    repo_tag = "otel/demo-fraud-detection:bazel",
+)

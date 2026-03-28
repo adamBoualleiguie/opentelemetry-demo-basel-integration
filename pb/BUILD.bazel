@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@grpc-java//:java_grpc_library.bzl", "java_grpc_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_java//java:defs.bzl", "java_library", "java_proto_library")
 load("@rules_python//python:defs.bzl", "py_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -22,6 +24,27 @@ js_library(
 proto_library(
     name = "demo_proto",
     srcs = ["demo.proto"],
+)
+
+# BZ-034: Java protobuf + gRPC stubs for demo.proto (consumers: ad, fraud-detection).
+java_proto_library(
+    name = "demo_java_proto",
+    deps = [":demo_proto"],
+)
+
+java_grpc_library(
+    name = "demo_java_grpc_internal",
+    srcs = [":demo_proto"],
+    deps = [":demo_java_proto"],
+)
+
+java_library(
+    name = "demo_java_grpc",
+    exports = [
+        ":demo_java_proto",
+        ":demo_java_grpc_internal",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 # BZ-032: Python gRPC stubs for demo.proto (committed outputs under python/; keep in sync with make/docker codegen).
@@ -66,5 +89,15 @@ filegroup(
     data = [
         ":demo_go_proto_checkout",
         ":demo_go_proto_product_catalog",
+    ],
+)
+
+# CI: `bazel build //pb:java_grpc_protos`
+filegroup(
+    name = "java_grpc_protos",
+    srcs = [],
+    data = [
+        ":demo_java_grpc",
+        ":demo_java_proto",
     ],
 )

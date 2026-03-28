@@ -8,9 +8,15 @@ module(
     version = "0.0.0",
 )
 
-# M1: protobuf + Go gRPC codegen. (Java / Python / C++ / TS proto rules add large
-# toolchains; see //pb/extra for optional builds.)
+# M1: protobuf + Go gRPC codegen.
+# M3 BZ-034/BZ-070/BZ-071: grpc-java supplies java_grpc_library + aligned Maven (io_grpc_grpc_java).
 bazel_dep(name = "protobuf", version = "29.3")
+# Health / reflection protos for Java strict deps (grpc-java uses this repo internally; root needs visibility for BZ-070).
+bazel_dep(name = "grpc-proto", version = "0.0.0-20240627-ec30f58")
+bazel_dep(name = "grpc-java", version = "1.78.0")
+bazel_dep(name = "rules_java", version = "8.5.1")
+bazel_dep(name = "rules_jvm_external", version = "6.9")
+bazel_dep(name = "rules_kotlin", version = "2.3.20")
 
 # M3 BZ-060/BZ-061: Python services (pip hubs + hermetic 3.12 toolchain).
 bazel_dep(name = "rules_python", version = "0.40.0")
@@ -34,6 +40,59 @@ pip.parse(
     requirements_lock = "//tools/python:requirements_loadgen_lock.txt",
 )
 use_repo(pip, "pypi", "pypi_loadgen")
+
+# M3 BZ-070/071: Kotlin toolchains (rules_kotlin Bzlmod extension).
+rules_kotlin_extensions = use_extension("@rules_kotlin//src/main/starlark/core/repositories:bzlmod_setup.bzl", "rules_kotlin_extensions")
+use_repo(
+    rules_kotlin_extensions,
+    "com_github_google_ksp",
+    "com_github_jetbrains_kotlin",
+    "com_github_jetbrains_kotlin_git",
+    "com_github_pinterest_ktlint",
+    "kotlin_build_tools_impl",
+    "kotlinx_coroutines_core_jvm",
+    "kotlinx_serialization_core_jvm",
+    "kotlinx_serialization_json",
+    "kotlinx_serialization_json_jvm",
+)
+
+register_toolchains("@rules_kotlin//kotlin/internal:default_toolchain")
+
+# Application Maven deps merged into the same `maven` repo as grpc-java/protobuf (rules_jvm_external layering).
+# Do not duplicate coordinates already pulled by grpc-java (e.g. guava).
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    name = "maven",
+    artifacts = [
+        "com.fasterxml.jackson.core:jackson-core:2.21.1",
+        "com.fasterxml.jackson.core:jackson-databind:2.21.1",
+        "com.google.protobuf:protobuf-kotlin:4.29.3",
+        "dev.openfeature.contrib.providers:flagd:0.11.20",
+        "dev.openfeature:sdk:1.20.1",
+        "io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.25.0",
+        "io.opentelemetry:opentelemetry-api:1.60.1",
+        "io.opentelemetry:opentelemetry-context:1.60.1",
+        "io.opentelemetry:opentelemetry-exporter-otlp:1.60.1",
+        "io.opentelemetry:opentelemetry-extension-annotations:1.18.0",
+        "io.opentelemetry:opentelemetry-sdk:1.60.1",
+        "io.opentelemetry:opentelemetry-sdk-common:1.60.1",
+        "io.opentelemetry:opentelemetry-sdk-logs:1.60.1",
+        "io.opentelemetry:opentelemetry-sdk-metrics:1.60.1",
+        "io.opentelemetry:opentelemetry-sdk-trace:1.60.1",
+        "javax.annotation:javax.annotation-api:1.3.2",
+        "org.apache.kafka:kafka-clients:4.2.0",
+        "org.apache.logging.log4j:log4j-api:2.25.3",
+        "org.apache.logging.log4j:log4j-core:2.25.3",
+        "org.slf4j:slf4j-api:2.0.17",
+    ],
+    known_contributing_modules = [
+        "grpc-java",
+        "otel_demo",
+        "protobuf",
+    ],
+    repositories = ["https://repo.maven.apache.org/maven2"],
+)
+use_repo(maven, "maven")
 
 # >=0.56: Go 1.25 stdlib (no invalid GOEXPERIMENT nocoverageredesign / coverageredesign).
 bazel_dep(name = "rules_go", version = "0.59.0")
@@ -148,6 +207,26 @@ oci.pull(
         "linux/arm64",
     ],
 )
+
+# JVM services (BZ-121): gcr.io/distroless/java{17,21}-debian12:nonroot — index digests (amd64 + arm64).
+oci.pull(
+    name = "distroless_java21_debian12_nonroot",
+    digest = "sha256:7e37784d94dccbf5ccb195c73b295f5ad00cd266512dfbac12eb9c3c28f8077d",
+    image = "gcr.io/distroless/java21-debian12",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
+oci.pull(
+    name = "distroless_java17_debian12_nonroot",
+    digest = "sha256:06484c2a9dcc9070aeafbc0fe752cb9f73bc0cea5c311f6a516e9010061998ad",
+    image = "gcr.io/distroless/java17-debian12",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
 use_repo(
     oci,
     "distroless_nodejs22_debian12_nonroot",
@@ -156,6 +235,12 @@ use_repo(
     "distroless_nodejs24_debian13_nonroot",
     "distroless_nodejs24_debian13_nonroot_linux_amd64",
     "distroless_nodejs24_debian13_nonroot_linux_arm64",
+    "distroless_java17_debian12_nonroot",
+    "distroless_java17_debian12_nonroot_linux_amd64",
+    "distroless_java17_debian12_nonroot_linux_arm64",
+    "distroless_java21_debian12_nonroot",
+    "distroless_java21_debian12_nonroot_linux_amd64",
+    "distroless_java21_debian12_nonroot_linux_arm64",
     "distroless_static_debian12_nonroot",
     "distroless_static_debian12_nonroot_linux_amd64",
     "distroless_static_debian12_nonroot_linux_arm64",

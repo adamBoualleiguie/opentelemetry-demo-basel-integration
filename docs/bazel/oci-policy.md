@@ -8,7 +8,7 @@ This note records the **chosen direction** for building container images with Ba
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
 | **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
-| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** — **`oci_image`** + **`oci_load`** each | Proves Go, Node, Next, and Python (**`rules_pkg`** `pkg_tar` + **`py_binary`** runfiles) paths: digest-pinned bases, layering, `docker load`. |
+| **Pilot (BZ-121)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** — **`oci_image`** + **`oci_load`** each | Proves Go, Node, Next, Python (**`rules_pkg`** `pkg_tar` + **`py_binary`** runfiles), and JVM (**`java_binary` deploy JAR** + **`pkg_tar`**) paths: digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
 
@@ -49,6 +49,16 @@ This note records the **chosen direction** for building container images with Ba
 | **Layers** | **`rules_pkg`** **`pkg_tar`** with **`include_runfiles = True`** on each **`py_binary`**; files under **`/app/<name>`** + **`/app/<name>.runfiles/`**; macro **`//tools/bazel:py_oci.bzl`** **`py_binary_oci`**. |
 | **Runtime** | **`ENTRYPOINT`** **`/app/<py_binary name>`**; **`WORKDIR`** **`/app`**. Ports align with **`.env`** defaults (**9001**, **3551**, **8000**, **8089**). |
 | **Caveat** | **`load-generator`**: Bazel image includes Locust + Playwright **Python** deps only — **not** **`playwright install`** browsers; use **`src/load-generator/Dockerfile`** for full Playwright parity. |
+
+### JVM (`ad`, `fraud-detection`)
+
+| Item | Detail |
+|------|--------|
+| **Image / load** | **`//src/ad:ad_oci_image`**, **`//src/ad:ad_oci_load`** → **`otel/demo-ad:bazel`**; **`//src/fraud-detection:fraud_detection_oci_image`**, **`//src/fraud-detection:fraud_detection_oci_load`** → **`otel/demo-fraud-detection:bazel`**. |
+| **Base** | **`gcr.io/distroless/java21-debian12`** (multi-arch index digest **`sha256:7e37784d94dccbf5ccb195c73b295f5ad00cd266512dfbac12eb9c3c28f8077d`**) for **`ad`** — matches Java **21** in **`src/ad/Dockerfile`**. **`gcr.io/distroless/java17-debian12`** (index **`sha256:06484c2a9dcc9070aeafbc0fe752cb9f73bc0cea5c311f6a516e9010061998ad`**) for **`fraud-detection`** — matches **`src/fraud-detection/Dockerfile`**. |
+| **Layers** | **`rules_pkg`** **`pkg_tar`** of the implicit **`java_binary` deploy JAR** (`*_deploy.jar`) under **`/usr/src/app/`**; macro **`//tools/bazel:java_oci.bzl`** **`java_deploy_jar_oci`**. |
+| **Runtime** | **`ENTRYPOINT`** **`/usr/bin/java -jar /usr/src/app/<deploy>.jar`**; **`WORKDIR`** **`/usr/src/app`**. **`ad`** exposes **9555/tcp** (demo **AD_PORT**). **`fraud-detection`** is a Kafka consumer — **no** **`exposed_ports`** in the image. |
+| **Caveat** | Upstream Dockerfiles add the **OpenTelemetry Java agent** via **`JAVA_TOOL_OPTIONS`**. Bazel images do **not** bundle the agent by default; add a second **`pkg_tar`** layer or **`env`** on **`oci_image`** if you need parity with **`docker compose`**. |
 
 ## Out of scope at BZ-120
 

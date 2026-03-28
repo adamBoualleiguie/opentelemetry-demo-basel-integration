@@ -1,0 +1,57 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# BZ-070: Java ad service — Bazel build from //pb Java gRPC + @grpc-java + @maven (Gradle remains source of layout).
+
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("//tools/bazel:java_oci.bzl", "java_deploy_jar_oci")
+
+java_library(
+    name = "ad_lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    resources = glob(["src/main/resources/**"]),
+    deps = [
+        "//pb:demo_java_grpc",
+        "@grpc-proto//:health_java_proto",
+        "@grpc-java//api:api",
+        "@grpc-java//core:core_maven",
+        "@grpc-java//netty:netty",
+        "@grpc-java//protobuf:protobuf",
+        "@grpc-java//services:services_maven",
+        "@grpc-java//stub:stub",
+        "@maven//:com_google_guava_guava",
+        "@maven//:dev_openfeature_contrib_providers_flagd",
+        "@maven//:dev_openfeature_sdk",
+        "@maven//:io_opentelemetry_instrumentation_opentelemetry_instrumentation_annotations",
+        "@maven//:io_opentelemetry_opentelemetry_api",
+        "@maven//:io_opentelemetry_opentelemetry_context",
+        "@maven//:io_opentelemetry_opentelemetry_sdk",
+        "@maven//:io_opentelemetry_opentelemetry_sdk_common",
+        "@maven//:io_opentelemetry_opentelemetry_sdk_metrics",
+        "@maven//:io_opentelemetry_opentelemetry_sdk_trace",
+        "@maven//:javax_annotation_javax_annotation_api",
+        "@maven//:org_apache_logging_log4j_log4j_api",
+        "@maven//:org_apache_logging_log4j_log4j_core",
+    ],
+)
+
+java_binary(
+    name = "ad",
+    main_class = "oteldemo.AdService",
+    visibility = ["//visibility:public"],
+    runtime_deps = [
+        ":ad_lib",
+        "@maven//:com_fasterxml_jackson_core_jackson_core",
+        "@maven//:com_fasterxml_jackson_core_jackson_databind",
+    ],
+)
+
+# BZ-121: deploy JAR + distroless Java 21 (aligns with src/ad/Dockerfile JRE 21; no OTel agent in image).
+java_deploy_jar_oci(
+    name = "ad_oci",
+    base = "@distroless_java21_debian12_nonroot_linux_amd64//:distroless_java21_debian12_nonroot_linux_amd64",
+    deploy_jar = ":ad_deploy.jar",
+    exposed_ports = ["9555/tcp"],
+    jar_name = "ad_deploy.jar",
+    repo_tag = "otel/demo-ad:bazel",
+)

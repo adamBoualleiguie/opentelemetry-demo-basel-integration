@@ -57,12 +57,12 @@ This document is the **M3 milestone report** for `5-bazel-migration-task-backlog
 | Go `checkout`, `product-catalog` | M2 (BZ-040/041) | **Built & tested** under Bazel (M2). M3 uses them for **BZ-121** pilot candidate. |
 | Node `payment` | M2 (BZ-050) | **`js_binary`** (M2) + **BZ-121** **`payment_image`** / **`payment_load`** (see §9.3). |
 | Python ×4 | M3 (BZ-060/061) + **BZ-121** OCI | **Buildable:** `rules_python` + dual **`pip.parse`** hubs; **`//pb:demo_py_grpc`**; **`py_binary`** + **`oci_image`** / **`oci_load`** per service (**§4**, **§9.5**). |
-| Java `ad`, Kotlin `fraud-detection` | M3 (BZ-070/071) | **Not started** — Gradle remains source of truth. |
+| Java `ad`, Kotlin `fraud-detection` | M3 (BZ-070/071) + **BZ-034** + **BZ-121** | **Built in Bazel:** `//src/ad:ad`, `//src/fraud-detection:fraud_detection`; protos from **`//pb:demo_java_grpc`**; **`oci_image`** / **`oci_load`** **`ad_oci_*`**, **`fraud_detection_oci_*`** (see **§5**, **§9.6**). Gradle/Docker remain alternate entrypoints. **No `java_test` / `kt_jvm_test`** in-tree yet. |
 | .NET `accounting` | M3 (BZ-080) | **Not started**. |
 | Rust `shipping` | M3 (BZ-090) | **Not started**. |
 | Next `frontend` | M3 (BZ-051) | **`next build`** via **`js_run_binary`** **`//src/frontend:next_build`**; **lint** **`//src/frontend:lint`**; **`npm_frontend`** + `pnpm-lock.yaml` (see [§8](#8-epic-f--node-frontend-bz-051)). |
 | OCI policy | M3 (BZ-120) | **Documented** in `docs/bazel/oci-policy.md` (**rules_oci** direction, pilot scope). |
-| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, and the **four Python** services (**`recommendation`**, **`product-reviews`**, **`llm`**, **`load-generator`**): **`oci_image`** + **`oci_load`** each (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). |
+| Pilot OCI image | M3 (BZ-121) | **Implemented** for **`checkout`**, **`payment`**, **`frontend`**, the **four Python** services, and **JVM `ad` / `fraud-detection`**: **`oci_image`** + **`oci_load`** (see [§9](#9-epic-m--oci-images-bz-120-bz-121)). Bases are digest-pinned in **`MODULE.bazel`**; JVM uses **distroless Java 21 / 17** + deploy JAR layers. |
 | Test tags | M3 (BZ-130) | **Done**: `.bazelrc` configs; all **`go_test`** targets tagged; **`docs/bazel/test-tags.md`**; **CONTRIBUTING** pointer. |
 
 So: **M3 in this document = full methodological coverage + backlog alignment**; **implementation** of every service is **incremental** after M2.
@@ -176,46 +176,97 @@ These are **not new M3 epics** but **prerequisites** the backlog assumes before 
 
 ## 5. Epic H — JVM: Java & Kotlin (BZ-070, BZ-071)
 
-### 5.1 Service: `src/ad` (Java, Gradle)
+### 5.0 Cross-cutting: **BZ-034** (Java / Kotlin proto + gRPC) and Maven strategy
 
-| Field | Detail |
-|-------|--------|
-| **Stack** | **Gradle** (`build.gradle`, `settings.gradle`), Java sources under `src/main/java`. |
-| **Build today** | `./gradlew` in Docker; fat/configured JAR for container. |
-| **Proto** | **BZ-034**: `java_proto_library` / gRPC Java from `//pb:demo_proto` (or dedicated `java_grpc_library` rules). |
-| **Backlog** | **BZ-070** — prefer native **`java_library`** / **`java_binary`** (or **`java_test`**). |
+**Goal:** One canonical Java API for `pb/demo.proto` (messages + gRPC stubs) that both JVM services depend on, aligned with **`docs/bazel/proto-policy.md`**.
 
-**Conversion steps (preferred path):**
+**Implemented in `pb/BUILD.bazel`:**
 
-1. Add **`rules_java`**, **`rules_jvm_external`** (Maven pin) or **Gradle-deps export** to `MODULE.bazel`.  
-2. Wire **protobuf Java** outputs from `pb/demo.proto` into a single **`java_library`** consumed by `ad`.  
-3. Create **`src/ad/BUILD.bazel`**:  
-   - `java_library` per package or one merged library mirroring Gradle `sourceSets`.  
-   - `java_binary` with `main_class` matching today’s entrypoint (`oteldemo.AdService` or as in Gradle).  
-4. **Resources**: `src/main/resources` via `resources = glob(...)` on the library.  
-5. **Transitional:** if migration is blocked, **`genrule`** invoking `./gradlew installDist` with **`outs`** declared — backlog allows this **only if needed**.  
-6. **Tests:** port Gradle tests to `java_test` when present.
+- **`java_proto_library`** **`demo_java_proto`** on **`demo_proto`**.  
+- **`java_grpc_library`** from **`@grpc-java//:java_grpc_library.bzl`** (**`demo_java_grpc_internal`**) with **`srcs = [":demo_proto"]`**, **`deps = [":demo_java_proto"]`**.  
+- **`demo_java_grpc`** — thin **`java_library`** that **`exports`** proto + gRPC internal jars so consumers add a single **`//pb:demo_java_grpc`** dep.  
+- **`java_grpc_protos`** **`filegroup`** — optional CI grouping (**`bazel build //pb:java_grpc_protos`** builds the same graph as **`demo_java_grpc`** via **`data`**).
 
-**Status in this repository:** **Not started** (Gradle-only).
+**Tooling notes:**
+
+- Root **`MODULE.bazel`** declares **`bazel_dep(grpc-java, 1.78.0)`** so **`java_grpc_library`** and **`@grpc-java//...`** Java targets resolve from the same stack as codegen.  
+- **`bazel_dep(grpc-proto, 0.0.0-20240627-ec30f58)`** matches grpc-java’s grpc-proto pin so **`@grpc-proto//:health_java_proto`** is visible for **strict Java deps** (see **§5.1**): **`ad`** references **`io.grpc.health.v1.HealthCheckResponse.ServingStatus`**, which must not be “indirect only” under **`--strict_java_deps`**.  
+- **Host C++ for gRPC Java codegen:** `.bazelrc` sets **`common --host_cxxopt=-std=c++17`** and **`common --cxxopt=-std=c++17`** so Abseil / protobuf C++ toolchains used while building the Java plugin meet **C++17** (otherwise analysis fails on older defaults).
+
+**Maven pin strategy (`rules_jvm_external`):**
+
+- Single **`maven.install(name = "maven", …)`** in the root module with **`known_contributing_modules = ["grpc-java", "otel_demo", "protobuf"]`** so grpc-java’s Maven graph and the app’s coordinates merge without a second **`use_repo`** hub.  
+- Application JARs are listed explicitly in **`artifacts = [...]`** (OpenTelemetry **1.60.1** line, FlagD, Log4j, Jackson, Kafka, **`protobuf-kotlin`**, **`javax.annotation-api`**, etc.) — **pin in one place**; refresh with **`bazel run @rules_jvm_external//:pin`** when bumping versions (see rules_jvm_external docs).  
+- **`use_repo(maven, "maven")`** exposes **`@maven//:io_opentelemetry_*`**, **`@maven//:com_google_guava_guava`**, etc.
+
+**Rules wiring:**
+
+- **`bazel_dep(rules_java, 8.5.1)`** — explicit (same major line as grpc-java); **`rules_jvm_external` 6.9**; **`rules_kotlin` 2.3.20** with **`rules_kotlin_extensions`** + **`register_toolchains("@rules_kotlin//kotlin/internal:default_toolchain")`**.
 
 ---
 
-### 5.2 Service: `src/fraud-detection` (Kotlin)
+### 5.1 Service: `src/ad` (Java) — **BZ-070**
 
 | Field | Detail |
 |-------|--------|
-| **Stack** | Kotlin / JVM, typically **Gradle** + **shadow** JAR for images. |
-| **Proto** | **BZ-034** + Kotlin gRPC if used. |
-| **Backlog** | **BZ-071** — shadow/fat JAR equivalent (`java_binary` deploy jar, or `rules_kotlin` + single deployable). |
+| **Stack** | **Gradle** remains valid locally; **Bazel** mirrors **`src/main/java`** + **`src/main/resources`**. |
+| **Build today** | Docker / `./gradlew`; Bazel: **`java_binary`** **`//src/ad:ad`**, **`main_class = "oteldemo.AdService"`**. |
+| **Proto** | **`//pb:demo_java_grpc`**. |
+| **Runtime** | **`@grpc-java//api`**, **`core_maven`**, **`netty`**, **`protobuf`**, **`stub`**, **`services:services_maven`**; **`@grpc-proto//:health_java_proto`** (strict deps); **`@maven//`** for Guava, OTel (incl. **`opentelemetry-context`**), instrumentation annotations, FlagD, Log4j, **`javax.annotation-api`**; Jackson on **`java_binary`** **`runtime_deps`**. |
 
-**Conversion steps:**
+**Targets (`src/ad/BUILD.bazel`):**
 
-1. Add **`rules_kotlin`** (and Java rules as above).  
-2. Kotlin **`kt_jvm_library`** + **`kt_jvm_binary`** or **`java_binary`** runtime entry.  
-3. Reproduce **shadow** semantics: prefer **`java_binary`** with **`create_executable = False`** + deploy env, or a **`pkg_tar`** / **`rules_pkg`** staging step for OCI.  
-4. Align **OpenTelemetry** / logging JARs via Maven pin (`rules_jvm_external`).
+| Target | Role |
+|--------|------|
+| **`ad_lib`** | **`java_library`** — **`srcs = glob(["src/main/java/**/*.java"])`**, **`resources = glob(["src/main/resources/**"])`**. |
+| **`ad`** | **`java_binary`** — runnable wrapper + **`runtime_deps`** for Jackson. |
+| **`ad_oci_image` / `ad_oci_load`** | **`java_deploy_jar_oci`** (**`//tools/bazel:java_oci.bzl`**): **`pkg_tar`** of **`ad_deploy.jar`** + **`oci_image`** on **`distroless_java21_debian12_nonroot`** (**linux/amd64**); **`otel/demo-ad:bazel`**. |
 
-**Status in this repository:** **Not started**.
+**Fat JAR / Docker parity:** build **`//src/ad:ad_deploy.jar`** for a single classpath-merged artifact (Gradle **installDist** / image stages can consume this path under **`bazel-bin`**). The **OCI** target reuses that deploy JAR (see **`ad_oci_*`** above).
+
+**Escape hatch:** no **`genrule` + `./gradlew`** was required; if a future dependency blocks Bazel, the backlog-allowed genrule path remains documented in the task matrix (**§1**).
+
+**Tests:** no **`src/test`** Java tree in this demo service — no **`java_test`** added.
+
+**Status in this repository:** **Implemented** (build + **`ad_oci_image`** + CI smoke). **Docker / compose parity:** Bazel images omit the **OTel Java agent** bundle that **`src/ad/Dockerfile`** downloads; set **`JAVA_TOOL_OPTIONS`** or add a layer if you need identical instrumentation.
+
+---
+
+### 5.2 Service: `src/fraud-detection` (Kotlin) — **BZ-071**
+
+| Field | Detail |
+|-------|--------|
+| **Stack** | Kotlin JVM; **Gradle shadow** remains the upstream pattern; Bazel uses **`rules_kotlin`** + **`java_binary`**. |
+| **Proto** | Kotlin consumes the same generated **Java** stubs: **`//pb:demo_java_grpc`** (no separate Kotlin protoc plugin for this service — **`protobuf-kotlin`** on the classpath for runtime where needed). |
+| **Runtime** | **`@maven//`** Kafka clients, OTel API/SDK + extension annotations, FlagD, Log4j, slf4j, **`com_google_protobuf_protobuf_kotlin`**, **`javax.annotation_api`**. |
+
+**Targets (`src/fraud-detection/BUILD.bazel`):**
+
+| Target | Role |
+|--------|------|
+| **`fraud_detection_lib`** | **`kt_jvm_library`** — **`src/main/kotlin/**/*.kt`**, resources glob. |
+| **`fraud_detection`** | **`java_binary`**, **`main_class = "frauddetection.MainKt"`**, **`runtime_deps = [":fraud_detection_lib"]`**. |
+| **`fraud_detection_oci_image` / `fraud_detection_oci_load`** | Same macro as **`ad`**, base **Java 17** distroless (Kafka worker; **no** **`exposed_ports`**). **`otel/demo-fraud-detection:bazel`**. |
+
+**Shadow JAR equivalent:** **`//src/fraud-detection:fraud_detection_deploy.jar`** — same semantics as **`ad_deploy.jar`** (one self-contained JAR for OCI or **`java -jar`**). This matches the **fat / shadow** intent for the Kafka worker without duplicating Gradle’s **`shadowJar`** task in Bazel.
+
+**Status in this repository:** **Implemented** (build + **`fraud_detection_oci_image`** + CI smoke). Same **OTel agent** caveat as **`ad`** (**`src/fraud-detection/Dockerfile`** uses **`-javaagent`**).
+
+---
+
+### 5.3 Verification (Epic H)
+
+```bash
+bazel build //pb:demo_java_grpc //pb:java_grpc_protos --config=ci
+bazel build //src/ad:ad //src/fraud-detection:fraud_detection --config=ci
+# Optional — fat JARs (BZ-071 shadow parity / image prep):
+bazel build //src/ad:ad_deploy.jar //src/fraud-detection:fraud_detection_deploy.jar --config=ci
+# OCI / docker load (BZ-121):
+bazel build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
+bazel run //src/ad:ad_oci_load
+bazel run //src/fraud-detection:fraud_detection_oci_load
+docker image ls | grep -E 'otel/demo-ad:bazel|otel/demo-fraud-detection:bazel'
+```
 
 ---
 
@@ -327,7 +378,7 @@ bazel build //src/frontend:next_build //src/frontend:frontend_image //src/fronte
 
 ### 9.1 BZ-120 — Policy
 
-**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), and **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**).
+**Done in this fork (doc-level):** `docs/bazel/oci-policy.md` selects **`rules_oci`**, digest-pinned bases, and documents **BZ-121** on **checkout** (Go), **payment** (Node / **js_image_layer**), **frontend** (Next + **nodejs24** distroless), **Python** services (**`rules_pkg`** **`pkg_tar(include_runfiles)`** + **`docker.io/library/python:3.12-slim-bookworm`**), and **JVM** **`ad` / `fraud-detection`** (**deploy JAR** + **distroless Java** — **§9.6**).
 
 ### 9.2 BZ-121 — Pilot image (`checkout`, Go)
 
@@ -423,6 +474,34 @@ bazel run //src/llm:llm_load
 docker image ls | grep 'otel/demo-llm'
 ```
 
+### 9.6 BZ-121 — Extension: JVM (**`ad`**, **`fraud-detection`**)
+
+**What we added**
+
+1. **`MODULE.bazel`** — two **`oci.pull`** roots: **`distroless_java21_debian12_nonroot`** (index digest **`sha256:7e37784d94dccbf5ccb195c73b295f5ad00cd266512dfbac12eb9c3c28f8077d`**, **`gcr.io/distroless/java21-debian12`**, **amd64** + **arm64** manifests) and **`distroless_java17_debian12_nonroot`** (**`sha256:06484c2a9dcc9070aeafbc0fe752cb9f73bc0cea5c311f6a516e9010061998ad`**, **`gcr.io/distroless/java17-debian12`**). **`use_repo`** exports **`*_linux_amd64`** / **`*_linux_arm64`** variants (images pin **linux/amd64** bases today, same pattern as **`checkout`** / Python).
+
+2. **`tools/bazel/java_oci.bzl`** — **`java_deploy_jar_oci`**: **`pkg_tar`** of the **`java_binary`** implicit **`_deploy.jar`** into **`usr/src/app/`**, then **`oci_image`** with **`entrypoint = ["/usr/bin/java", "-jar", "/usr/src/app/<jar>"]`**, **`workdir = "/usr/src/app"`**, **`oci_load`** with **`otel/demo-*:bazel`** tags.
+
+3. **`src/ad/BUILD.bazel`** — **`java_deploy_jar_oci`** **`name = "ad_oci"`** → **`ad_oci_image`**, **`ad_oci_load`**; **`exposed_ports = ["9555/tcp"]`** (**.env** **`AD_PORT`**).
+
+4. **`src/fraud-detection/BUILD.bazel`** — **`fraud_detection_oci_*`** on **Java 17** base; no exposed ports (Kafka consumer only).
+
+**Verification**
+
+```bash
+bazel build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
+bazel run //src/ad:ad_oci_load
+bazel run //src/fraud-detection:fraud_detection_oci_load
+docker image ls | grep -E 'demo-ad:bazel|demo-fraud-detection:bazel'
+```
+
+**Caveats**
+
+- **OTel Java agent:** not included in Bazel-built images (upstream Dockerfiles **`ADD`** **`opentelemetry-javaagent.jar`** and set **`JAVA_TOOL_OPTIONS`**). Add a **`pkg_tar`** layer or **`env`** on **`oci_image`** for parity.  
+- **`bazel_smoke`** builds **`ad_oci_image`** and **`fraud_detection_oci_image`** (not **`oci_load`**) to keep CI artifact-only.
+
+**Next (BZ-122 / M4):** align **`component-build-images.yml`**, registry push (**BZ-123**), optional **multi-arch** **`oci_image` `base`** selection.
+
 ---
 
 ## 10. Epic N — Test taxonomy (BZ-130)
@@ -469,7 +548,9 @@ Aligned with **§22 Suggested implementation order** in the backlog (items 8–1
 **Already available (M2 + M1):**
 
 ```bash
-bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc --config=ci
+bazel build //:smoke //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc //pb:demo_java_grpc --config=ci
+bazel build //src/ad:ad //src/fraud-detection:fraud_detection --config=ci
+bazel build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
 bazel build //src/checkout/... //src/product-catalog/... //src/payment:payment --config=ci
 bazel build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci
 bazel build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image //src/llm:llm_image //src/load-generator:load_generator_image --config=ci

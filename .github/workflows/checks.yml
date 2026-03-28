@@ -111,10 +111,12 @@ jobs:
         uses: bazel-contrib/setup-bazelisk@v3
       - name: Bazel version
         run: bazelisk version
-      - name: Bazel M0 smoke + M1 proto + M2 Go + payment + frontend OCI + M3 Python
+      - name: Bazel M0 smoke + M1 proto + M2 Go + payment + frontend OCI + M3 Python + JVM
         run: |
           bazelisk build //:smoke --config=ci
-          bazelisk build //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc --config=ci
+          bazelisk build //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc //pb:demo_java_grpc --config=ci
+          bazelisk build //src/ad:ad //src/fraud-detection:fraud_detection --config=ci
+          bazelisk build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
           bazelisk build //src/checkout/... //src/product-catalog/... //src/payment/... --config=ci
           bazelisk build //src/frontend:frontend_image --config=ci
           bazelisk build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci

@@ -21,31 +21,31 @@ genrule(
 # Usage: `bazel run //:markdownlint` (requires BUILD_WORKSPACE_DIRECTORY — set by `bazel run`).
 sh_binary(
     name = "markdownlint",
-    srcs = ["tools/bazel/lint/markdownlint.sh"],
+    srcs = ["//tools/bazel:lint/markdownlint.sh"],
 )
 
 sh_binary(
     name = "yamllint",
-    srcs = ["tools/bazel/lint/yamllint.sh"],
+    srcs = ["//tools/bazel:lint/yamllint.sh"],
 )
 
 sh_binary(
     name = "misspell",
-    srcs = ["tools/bazel/lint/misspell.sh"],
+    srcs = ["//tools/bazel:lint/misspell.sh"],
 )
 
 sh_binary(
     name = "checklicense",
-    srcs = ["tools/bazel/lint/checklicense.sh"],
+    srcs = ["//tools/bazel:lint/checklicense.sh"],
 )
 
 sh_binary(
     name = "sanitycheck",
-    srcs = ["tools/bazel/lint/sanitycheck.sh"],
+    srcs = ["//tools/bazel:lint/sanitycheck.sh"],
 )
 
 # BZ-024: one command for all Make-backed hygiene checks listed above.
 sh_binary(
     name = "lint",
-    srcs = ["tools/bazel/lint/lint_all.sh"],
+    srcs = ["//tools/bazel:lint/lint_all.sh"],
 )
