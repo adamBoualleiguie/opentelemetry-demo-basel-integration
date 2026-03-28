@@ -1,10 +1,21 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
+load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 
 package(default_visibility = ["//visibility:public"])
+
+# Raw .proto for Node gRPC loaders (e.g. payment `protoLoader.loadSync('demo.proto')`).
+exports_files(["demo.proto"])
+
+# aspect_rules_js: cross-package data must be a js_library (same-dir copy_to_bin semantics).
+js_library(
+    name = "demo_proto_js",
+    srcs = ["demo.proto"],
+    visibility = ["//src/payment:__pkg__"],
+)
 
 # BZ-030: canonical proto_library for oteldemo API.
 proto_library(

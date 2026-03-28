@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# gazelle:prefix github.com/open-telemetry/opentelemetry-demo/src/checkout
+# gazelle:exclude genproto
+# gazelle:resolve go github.com/open-telemetry/opentelemetry-demo/src/checkout/genproto/oteldemo //pb:demo_go_proto_checkout
+
+go_library(
+    name = "checkout_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/open-telemetry/opentelemetry-demo/src/checkout",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pb:demo_go_proto_checkout",
+        "//src/checkout/kafka",
+        "//src/checkout/money",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_ibm_sarama//:sarama",
+        "@com_github_open_feature_go_sdk//openfeature",
+        "@com_github_open_feature_go_sdk_contrib_hooks_open_telemetry//pkg",
+        "@com_github_open_feature_go_sdk_contrib_providers_flagd//pkg",
+        "@io_opentelemetry_go_contrib_bridges_otelslog//:otelslog",
+        "@io_opentelemetry_go_contrib_instrumentation_google_golang_org_grpc_otelgrpc//:otelgrpc",
+        "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:otelhttp",
+        "@io_opentelemetry_go_contrib_instrumentation_runtime//:runtime",
+        "@io_opentelemetry_go_otel//:otel",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel//codes",
+        "@io_opentelemetry_go_otel//propagation",
+        "@io_opentelemetry_go_otel//semconv/v1.24.0:v1_24_0",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlplog_otlploggrpc//:otlploggrpc",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlpmetric_otlpmetricgrpc//:otlpmetricgrpc",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracegrpc//:otlptracegrpc",
+        "@io_opentelemetry_go_otel_log//global",
+        "@io_opentelemetry_go_otel_sdk//resource",
+        "@io_opentelemetry_go_otel_sdk//trace",
+        "@io_opentelemetry_go_otel_sdk_log//:log",
+        "@io_opentelemetry_go_otel_sdk_metric//:metric",
+        "@io_opentelemetry_go_otel_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//health",
+        "@org_golang_google_grpc//health/grpc_health_v1",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_binary(
+    name = "checkout",
+    embed = [":checkout_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,25 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+"""Payment service (Node). M2: Bazel `js_binary` + npm deps from pnpm lockfile."""
+
+load("@aspect_rules_js//js:defs.bzl", "js_binary")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "package.json",
+    "pnpm-lock.yaml",
+])
+
+npm_link_all_packages(name = "node_modules")
+
+js_binary(
+    name = "payment",
+    data = glob(["*.js"]) + [
+        "//pb:demo_proto_js",
+        ":node_modules",
+    ],
+    entry_point = "index.js",
+)

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "money",
+    srcs = ["money.go"],
+    importpath = "github.com/open-telemetry/opentelemetry-demo/src/checkout/money",
+    visibility = ["//visibility:public"],
+    deps = ["//pb:demo_go_proto_checkout"],
+)
+
+go_test(
+    name = "money_test",
+    srcs = ["money_test.go"],
+    embed = [":money"],
+    deps = ["//pb:demo_go_proto_checkout"],
+)

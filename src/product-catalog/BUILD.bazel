@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# gazelle:prefix github.com/opentelemetry/opentelemetry-demo/src/product-catalog
+# gazelle:exclude genproto
+# gazelle:resolve go github.com/opentelemetry/opentelemetry-demo/src/product-catalog/genproto/oteldemo //pb:demo_go_proto_product_catalog
+
+go_library(
+    name = "product-catalog_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/opentelemetry/opentelemetry-demo/src/product-catalog",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pb:demo_go_proto_product_catalog",
+        "@com_github_lib_pq//:pq",
+        "@com_github_open_feature_go_sdk//openfeature",
+        "@com_github_open_feature_go_sdk_contrib_hooks_open_telemetry//pkg",
+        "@com_github_open_feature_go_sdk_contrib_providers_flagd//pkg",
+        "@com_github_xsam_otelsql//:otelsql",
+        "@io_opentelemetry_go_contrib_bridges_otelslog//:otelslog",
+        "@io_opentelemetry_go_contrib_instrumentation_google_golang_org_grpc_otelgrpc//:otelgrpc",
+        "@io_opentelemetry_go_contrib_instrumentation_runtime//:runtime",
+        "@io_opentelemetry_go_contrib_otelconf//:otelconf",
+        "@io_opentelemetry_go_otel//:otel",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel//codes",
+        "@io_opentelemetry_go_otel//semconv/v1.38.0:v1_38_0",
+        "@io_opentelemetry_go_otel_log//global",
+        "@io_opentelemetry_go_otel_metric//:metric",
+        "@io_opentelemetry_go_otel_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//health",
+        "@org_golang_google_grpc//health/grpc_health_v1",
+        "@org_golang_google_grpc//reflection",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+go_binary(
+    name = "product-catalog",
+    embed = [":product-catalog_lib"],
+    visibility = ["//visibility:public"],
+)

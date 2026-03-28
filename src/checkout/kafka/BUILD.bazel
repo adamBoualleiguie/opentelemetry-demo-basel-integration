@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kafka",
+    srcs = ["producer.go"],
+    importpath = "github.com/open-telemetry/opentelemetry-demo/src/checkout/kafka",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_ibm_sarama//:sarama"],
+)

@@ -256,6 +256,11 @@ Bazel does not remove language SDKs from your life immediately:
 - Rules still need **compilers/runtimes** or **Bazel-managed toolchains** (depending on setup).
 - Practically: keep Tier B SDKs until every language lane uses fully hermetic remote/toolchain configs.
 
+**M2 onward (this fork):**
+
+- **Go:** Install **Go 1.25+** on the host for scripts and parity with CI; Bazel uses **`go_sdk.download`** as described in **`docs/bazel/go-toolchain.md`**.
+- **Node:** **`src/payment`** uses **aspect_rules_js** with a **`pnpm-lock.yaml`** checked in. To refresh that lock from **`package-lock.json`**, use **`pnpm import`** (see **`docs/bazel/milestones/m2-completion.md`**). **pnpm** on the dev machine is optional if you only consume the committed lock.
+
 ### 5.6 Remote build cache client requirements
 
 Architecture doc 2 assumes future **remote cache**.

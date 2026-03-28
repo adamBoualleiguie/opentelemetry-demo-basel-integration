@@ -1,9 +1,14 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-"""M0 root targets: smoke build and Make-backed lint entrypoints (bazel run)."""
+load("@gazelle//:def.bzl", "gazelle")
+
+"""Root targets: smoke, lint wrappers, Gazelle."""
 
 package(default_visibility = ["//visibility:public"])
+
+# Regenerate Go BUILD files: bazel run //:gazelle -- update src/checkout src/product-catalog
+gazelle(name = "gazelle")
 
 # BZ-012: proves the workspace loads and Bazel can execute a trivial action.
 genrule(

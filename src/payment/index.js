@@ -1,9 +1,26 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
+// Load SDK before other deps (Docker uses `node --require ./opentelemetry.js index.js`).
+require('./opentelemetry.js')
+const fs = require('fs')
+const path = require('path')
 const grpc = require('@grpc/grpc-js')
 const protoLoader = require('@grpc/proto-loader')
 const health = require('grpc-js-health-check')
 const opentelemetry = require('@opentelemetry/api')
+
+/** Docker: demo.proto next to sources. Bazel runfiles: _main/pb/demo.proto from _main/src/payment. */
+function demoProtoPath() {
+  const cwd = path.join(__dirname, 'demo.proto')
+  if (fs.existsSync(cwd)) {
+    return cwd
+  }
+  const runfilesPb = path.join(__dirname, '..', '..', 'pb', 'demo.proto')
+  if (fs.existsSync(runfilesPb)) {
+    return runfilesPb
+  }
+  return 'demo.proto'
+}
 
 const charge = require('./charge')
 const logger = require('./logger')
@@ -35,7 +52,7 @@ async function closeGracefully(signal) {
   process.kill(process.pid, signal)
 }
 
-const otelDemoPackage = grpc.loadPackageDefinition(protoLoader.loadSync('demo.proto'))
+const otelDemoPackage = grpc.loadPackageDefinition(protoLoader.loadSync(demoProtoPath()))
 const server = new grpc.Server()
 
 server.addService(health.service, new health.Implementation({

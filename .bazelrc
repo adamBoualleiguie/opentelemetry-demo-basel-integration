@@ -4,6 +4,10 @@
 # M0: Bzlmod-only workspace (no WORKSPACE dependencies).
 common --enable_bzlmod
 
+# Avoid host GOEXPERIMENT leaking into Go stdlib / go_repository fetch (e.g. unknown coverageredesign).
+common --action_env=GOEXPERIMENT=
+common --repo_env=GOEXPERIMENT=
+
 # --- Profiles (see docs/bazel/milestones/m0-completion.md) ---
 build:dev --announce_rc
 

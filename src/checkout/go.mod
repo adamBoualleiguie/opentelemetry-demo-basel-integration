@@ -79,7 +79,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-tool (
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc
-	google.golang.org/protobuf/cmd/protoc-gen-go
-)
+// tool (...) omitted: Gazelle go_deps parser does not support the `tool` directive (Go 1.22+).
+// For local protoc plugins: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && ...
