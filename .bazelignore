@@ -1,0 +1,35 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# VCS and IDE
+.git
+.idea
+
+# JavaScript (keep Bazel from scanning dependency trees)
+node_modules
+src/frontend/node_modules
+src/payment/node_modules
+src/react-native-app/node_modules
+
+# Bazel output roots (symlinks at repo root)
+/bazel-bin
+/bazel-out
+/bazel-testlogs
+/bazel-otel_demo
+
+# Mobile / RN
+src/react-native-app/ios/Pods
+src/react-native-app/.expo
+
+# Python virtualenvs
+.venv
+
+# Rust
+src/shipping/target
+
+# Gradle
+.gradle
+
+# Next.js / frontend build output
+.next
+out

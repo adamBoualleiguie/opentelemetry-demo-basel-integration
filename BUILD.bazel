@@ -1,0 +1,46 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+"""M0 root targets: smoke build and Make-backed lint entrypoints (bazel run)."""
+
+package(default_visibility = ["//visibility:public"])
+
+# BZ-012: proves the workspace loads and Bazel can execute a trivial action.
+genrule(
+    name = "smoke",
+    outs = ["smoke.txt"],
+    cmd = "echo bazel-m0-smoke-ok > $@",
+)
+
+# BZ-020–023: delegate to existing Makefile / scripts (single source of truth).
+# Usage: `bazel run //:markdownlint` (requires BUILD_WORKSPACE_DIRECTORY — set by `bazel run`).
+sh_binary(
+    name = "markdownlint",
+    srcs = ["tools/bazel/lint/markdownlint.sh"],
+)
+
+sh_binary(
+    name = "yamllint",
+    srcs = ["tools/bazel/lint/yamllint.sh"],
+)
+
+sh_binary(
+    name = "misspell",
+    srcs = ["tools/bazel/lint/misspell.sh"],
+)
+
+sh_binary(
+    name = "checklicense",
+    srcs = ["tools/bazel/lint/checklicense.sh"],
+)
+
+sh_binary(
+    name = "sanitycheck",
+    srcs = ["tools/bazel/lint/sanitycheck.sh"],
+)
+
+# BZ-024: one command for all Make-backed hygiene checks listed above.
+sh_binary(
+    name = "lint",
+    srcs = ["tools/bazel/lint/lint_all.sh"],
+)

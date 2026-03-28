@@ -84,6 +84,38 @@ jobs:
       - name: run checklicense
         run: make checklicense
 
+  # BZ-610 / M0: Bazel bootstrap smoke (non-blocking while rollout stabilizes).
+  bazel_smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: check out code
+        uses: actions/checkout@v6.0.2
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: npm install (root dev tools)
+        run: npm install
+      - name: Install yamllint
+        run: make install-yamllint
+      - name: Set up Bazelisk
+        uses: bazel-contrib/setup-bazelisk@v3
+      - name: Bazel version
+        run: bazelisk version
+      - name: Bazel M0 smoke build
+        run: bazelisk build //:smoke --config=ci
+      - name: Bazel lint wrappers (Make-backed)
+        run: bazelisk run //:lint
+
   build-test:
     needs: [
       build_images,
@@ -92,7 +124,8 @@ jobs:
       misspell,
       checklinks,
       sanity,
-      checklicense
+      checklicense,
+      bazel_smoke
     ]
     if: always() && !cancelled()
     runs-on: ubuntu-latest

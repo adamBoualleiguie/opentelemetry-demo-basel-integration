@@ -1,0 +1,20 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# M0: Bzlmod-only workspace (no WORKSPACE dependencies).
+common --enable_bzlmod
+
+# --- Profiles (see docs/bazel/m0-completion.md) ---
+build:dev --announce_rc
+
+build:ci --announce_rc
+build:ci --color=yes
+build:ci --curses=no
+
+# Reserved for later milestones (M5+ / release).
+build:release --announce_rc
+
+# Reserved for integration / trace / e2e-heavy runs.
+build:integration --announce_rc
+
+test:ci --test_output=errors
