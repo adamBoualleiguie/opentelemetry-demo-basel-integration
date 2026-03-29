@@ -142,12 +142,44 @@ This note records the **chosen direction** for building container images with Ba
 | **Runtime** | **`user`** **`101`**, **`ENTRYPOINT`** **`["/usr/sbin/nginx"]`**, **`CMD`** **`["-g", "daemon off;"]`**, **`8081/tcp`** (**`IMAGE_PROVIDER_PORT`**). |
 | **Caveat** | **Dockerfile** runs **`envsubst` at start** and **`cat`**’s the config (debug). Bazel image uses **pre-baked** **`nginx.conf`** only. Stub **`/status`** remains in the template. |
 
-## Out of scope at BZ-120
+## BZ-122 / M4 — Dockerfile vs Bazel image matrix
 
-- Full matrix parity with **`component-build-images.yml`** (BZ-122, **M4**).
-- Push targets and secrets (BZ-123, **M4**).
+**`component-build-images.yml`** remains the **authoritative** path for **published** multi-arch images (**`linux/amd64`**, **`linux/arm64`**) on PR/push to registries (**Docker Hub** + **GHCR**). Bazel **`oci_image`** targets prove **reproducible** **linux/amd64** builds and support **`docker load`** / optional **`oci_push`** (**BZ-123**).
+
+**Local tag convention:** Bazel **`oci_load`** uses a **`:bazel`** suffix (e.g. **`otel/demo-checkout:bazel`**) so **`docker images`** does not collide with Compose-pulled **`latest-*`** tags.
+
+| `tag_suffix` | Dockerfile (matrix) | Bazel targets (summary) | Notes |
+|--------------|--------------------|---------------------------|--------|
+| accounting | `./src/accounting/Dockerfile` | `//src/accounting:accounting_image`, `accounting_load` | Dual; publish = Dockerfile today. |
+| ad | `./src/ad/Dockerfile` | `//src/ad:ad_oci_image`, `ad_oci_load` | Dual; JVM agent parity differs (see M3). |
+| cart | `./src/cart/src/Dockerfile` | `//src/cart:cart_image`, `cart_load` | Dual; Bazel = FDD **aspnet** vs musl single-file Docker. |
+| checkout | `./src/checkout/Dockerfile` | `//src/checkout:checkout_image`, `checkout_load`, **`checkout_push`** | **BZ-631:** `checks.yml` also builds `checkout_image`. Push pattern: **`docs/bazel/oci-registry-push.md`**. |
+| currency | `./src/currency/Dockerfile` | `//src/currency:currency_image`, `currency_load` | Dual. |
+| email | `./src/email/Dockerfile` | `//src/email:email_image`, `email_load` | Dual; Bazel base = Debian slim vs Alpine Docker. |
+| flagd-ui | `./src/flagd-ui/Dockerfile` | `//src/flagd-ui:flagd_ui_image`, `flagd_ui_load` | Dual. |
+| fraud-detection | `./src/fraud-detection/Dockerfile` | `//src/fraud-detection:fraud_detection_oci_image`, `fraud_detection_oci_load` | Dual. |
+| frontend | `./src/frontend/Dockerfile` | `//src/frontend:frontend_image`, `frontend_load` | Dual; **`next_build`** is **`manual`**. |
+| frontend-proxy | `./src/frontend-proxy/Dockerfile` | `//src/frontend-proxy:frontend_proxy_image`, `frontend_proxy_load` | Dual; Bazel bakes Envoy YAML. |
+| frontend-tests | `./src/frontend/Dockerfile.cypress` | — | **Dockerfile only** (Cypress; **BZ-131**). |
+| image-provider | `./src/image-provider/Dockerfile` | `//src/image-provider:image_provider_image`, `image_provider_load` | Dual; Bazel bakes nginx.conf. |
+| kafka | `./src/kafka/Dockerfile` | — | **Dockerfile only** (**BZ-110**). |
+| llm | `./src/llm/Dockerfile` | `//src/llm:llm_image`, `llm_load` | Dual. |
+| load-generator | `./src/load-generator/Dockerfile` | `//src/load-generator:load_generator_image`, `load_generator_load` | Dual; Playwright not in Bazel image. |
+| opensearch | `./src/opensearch/Dockerfile` | — | **Dockerfile only** (**BZ-110**). |
+| payment | `./src/payment/Dockerfile` | `//src/payment:payment_image`, `payment_load` | Dual. |
+| product-catalog | `./src/product-catalog/Dockerfile` | `//src/product-catalog/...` **binary only** (no **`oci_image`** yet) | **Dockerfile** for publish; Bazel proves build + tests. |
+| product-reviews | `./src/product-reviews/Dockerfile` | `product_reviews_image`, `product_reviews_load` | Dual. |
+| quote | `./src/quote/Dockerfile` | `quote_image`, `quote_load` | Dual; PECL extensions differ. |
+| recommendation | `./src/recommendation/Dockerfile` | `recommendation_image`, `recommendation_load` | Dual. |
+| shipping | `./src/shipping/Dockerfile` | `shipping_image`, `shipping_load` | Dual. |
+| traceBasedTests | `./test/tracetesting/Dockerfile` | — | **Dockerfile only** (**BZ-132**, M5). |
+
+## Out of scope at BZ-120 (historical)
+
+- **M4** addresses matrix documentation above (**BZ-122**), **`oci_push`** pattern (**BZ-123** — see **`docs/bazel/oci-registry-push.md`**), and **`component-build-images.yml`** Bazel supplements (**BZ-631**).
 
 ## References
 
 - Milestone narrative: `docs/bazel/milestones/m3-completion.md` (Epic M, BZ-120–121; **BZ-097** edge images in **§7.7** / **§9.14**).
+- **M4:** `docs/bazel/milestones/m4-completion.md`, **`docs/bazel/oci-registry-push.md`**.
 - Service tracker: `docs/bazel/service-tracker.md`.

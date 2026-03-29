@@ -84,13 +84,14 @@ jobs:
       - name: run checklicense
         run: make checklicense
 
-  # BZ-610 / M0: Bazel bootstrap smoke (non-blocking while rollout stabilizes).
-  bazel_smoke:
+  # M4 (BZ-611 / BZ-613): Bazel is the primary build+test gate for the migrated graph.
+  bazel_ci:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: check out code
         uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -127,29 +128,21 @@ jobs:
         run: make install-yamllint
       - name: Set up Bazelisk
         uses: bazel-contrib/setup-bazelisk@v3
+      - name: Bazel disk cache (BZ-613)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel
+          key: bazel-${{ runner.os }}-${{ hashFiles('.bazelversion', 'MODULE.bazel.lock') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
       - name: Bazel version
         run: bazelisk version
-      - name: Bazel M0 smoke + M1 proto + M2 Go + payment + frontend OCI + M3 Python + JVM
-        run: |
-          bazelisk build //:smoke --config=ci
-          bazelisk build //pb:demo_proto //pb:go_grpc_protos //pb:demo_py_grpc //pb:demo_java_grpc --config=ci
-          bazelisk build //src/ad:ad //src/fraud-detection:fraud_detection --config=ci
-          bazelisk build //src/ad:ad_oci_image //src/fraud-detection:fraud_detection_oci_image --config=ci
-          bazelisk build //src/accounting:accounting_publish //src/accounting:accounting_image --config=ci
-          bazelisk build //src/cart:cart_publish //src/cart:cart_image --config=ci
-          bazelisk build //src/checkout/... //src/product-catalog/... //src/payment/... --config=ci
-          bazelisk build //src/frontend:frontend_image --config=ci
-          bazelisk build //src/recommendation:recommendation //src/product-reviews:product_reviews //src/llm:llm //src/load-generator:load_generator --config=ci
-          bazelisk build //src/recommendation:recommendation_image //src/product-reviews:product_reviews_image //src/llm:llm_image //src/load-generator:load_generator_image --config=ci
-          bazelisk build //src/shipping:shipping //src/shipping:shipping_image --config=ci
-          bazelisk build //src/currency:currency //src/currency:currency_image --config=ci
-          bazelisk build //src/email:email //src/email:email_image --config=ci
-          bazelisk build //src/flagd-ui:flagd_ui_publish //src/flagd-ui:flagd_ui_image --config=ci
-          bazelisk build //src/quote:quote_publish //src/quote:quote_image --config=ci
-          bazelisk build //src/frontend-proxy:frontend_proxy_image //src/image-provider:image_provider_image --config=ci
-          bazelisk test //src/checkout/... //src/product-catalog/... //src/shipping/... //src/currency:currency_proto_smoke_test //src/email:email_gems_smoke_test //src/flagd-ui:flagd_ui_mix_test //src/quote:quote_composer_smoke_test //src/react-native-app:rn_js_checks //src/frontend-proxy:frontend_proxy_config_test //src/image-provider:image_provider_config_test //src/frontend:lint --config=ci
-      - name: Bazel lint wrappers (Make-backed)
-        run: bazelisk run //:lint
+      - name: Affected targets hint (BZ-612)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: bash ./tools/bazel/ci/affected_targets.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}"
+      - name: Bazel CI full script (BZ-611 / M4)
+        run: bash ./tools/bazel/ci/ci_full.sh
 
   build-test:
     needs: [
@@ -160,7 +153,7 @@ jobs:
       checklinks,
       sanity,
       checklicense,
-      bazel_smoke
+      bazel_ci
     ]
     if: always() && !cancelled()
     runs-on: ubuntu-latest

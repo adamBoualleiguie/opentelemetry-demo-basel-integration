@@ -60,3 +60,36 @@ oci_load(
     image = ":cart_image",
     repo_tags = ["otel/demo-cart:bazel"],
 )
+
+filegroup(
+    name = "cart_dotnet_test_data",
+    srcs = glob(
+        [
+            "Directory.Build.props",
+            "NuGet.config",
+            "cart.slnx",
+            "src/**/*.cs",
+            "src/**/*.csproj",
+            "src/**/*.json",
+            "tests/**/*.cs",
+            "tests/**/*.csproj",
+        ],
+        exclude = [
+            "src/bin/**",
+            "src/obj/**",
+        ],
+    ) + ["//pb:demo.proto"],
+)
+
+# BZ-081 / M4: xUnit via host dotnet (NuGet restore — network).
+sh_test(
+    name = "cart_dotnet_test",
+    srcs = ["run_cart_dotnet_test.sh"],
+    data = [":cart_dotnet_test_data"],
+    tags = [
+        "no-sandbox",
+        "requires-network",
+        "unit",
+    ],
+    size = "enormous",
+)

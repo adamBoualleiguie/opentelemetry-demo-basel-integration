@@ -35,7 +35,7 @@ bazel test //src/checkout/... --config=ci --config=unit
 
 1. **Every new `go_test`** should set **`tags = ["unit"]`** unless it is clearly integration/e2e/trace (then use the appropriate tag, or `manual`).  
 2. **Gazelle** does not add tags automatically; update **`BUILD.bazel`** after `gazelle update`.  
-3. **Python / Rust / JS / Ruby / Elixir / PHP / React Native (`sh_test`)** tests: apply the same convention when those targets are added (**M3+**).
+3. **Python / Rust / JS / Ruby / Elixir / PHP / .NET (`sh_test`) / React Native (`sh_test`)** tests: apply the same convention when those targets are added (**M3+**). Network-heavy **`sh_test`** may add **`requires-network`** (Bazel tag) alongside **`unit`**.
 
 ## Current `unit` tests
 
@@ -50,7 +50,8 @@ bazel test //src/checkout/... --config=ci --config=unit
 | `//src/react-native-app:rn_js_checks` | `unit` |
 | `//src/frontend-proxy:frontend_proxy_config_test` | `unit` |
 | `//src/image-provider:image_provider_config_test` | `unit` |
+| `//src/cart:cart_dotnet_test` | `unit`, `requires-network`, `no-sandbox` (**BZ-081** / M4 — host **.NET 10** + NuGet) |
 
 ---
 
-See also: **`docs/bazel/milestones/m3-completion.md`** § Epic N, **`.bazelrc`**.
+See also: **`docs/bazel/milestones/m3-completion.md`** § Epic N, **`docs/bazel/milestones/m4-completion.md`**, **`.bazelrc`**.

@@ -18,6 +18,8 @@ This is **document 5** in the series. It is an **ordered, actionable backlog** t
 - Host toolchains (Go, Rust, Node, Python, JVM, .NET, etc.) are available per `4-bazel-dev-environment-ubuntu.md` where needed during migration; Bazel-managed toolchains can replace or complement them over time.
 - **No code changes** are performed while authoring this document; tasks below are **for future implementation**.
 
+**Fork note (OpenTelemetry demo + Bazel migration):** Epic **K** tasks **BZ-100–103** (C++, Ruby, PHP, Elixir) are implemented in this tree under the **M3** local IDs **BZ-092–095** (see **`docs/bazel/milestones/m3-completion.md`** §7). Treat **BZ-100–103** as **closed** when those sections are green; the numeric IDs differ from upstream ordering only.
+
 **How to use this backlog:**
 
 - Execute tasks **in epic order** unless dependencies say otherwise.

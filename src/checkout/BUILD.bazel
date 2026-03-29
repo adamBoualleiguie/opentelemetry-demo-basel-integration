@@ -1,6 +1,6 @@
 load("@aspect_bazel_lib//lib:tar.bzl", "mtree_mutate", "mtree_spec", "tar")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
-load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
 
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
@@ -93,4 +93,11 @@ oci_load(
     name = "checkout_load",
     image = ":checkout_image",
     repo_tags = ["otel/demo-checkout:bazel"],
+)
+
+# BZ-123 / M4: push pattern (requires registry auth on host — `docker login` / `crane auth`).
+# Runtime: bazel run //src/checkout:checkout_push -- --repository ghcr.io/myorg/demo --tag dev
+oci_push(
+    name = "checkout_push",
+    image = ":checkout_image",
 )

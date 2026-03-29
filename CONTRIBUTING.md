@@ -83,6 +83,8 @@ Once the images are built and containers are started, visit:
 
 If you use [Bazel](https://bazel.build/) in this fork, tests are classified with **tags** (`unit`, `integration`, `e2e`, …). Use **`--config=unit`** (defined in **`.bazelrc`**) to run only fast unit tests, or see **`docs/bazel/test-tags.md`** for the full convention and examples.
 
+PR checks run **`bash ./tools/bazel/ci/ci_full.sh`** (see **`tools/bazel/ci/README.md`** and **`docs/bazel/milestones/m4-completion.md`**). For a quicker loop locally (skips most **`oci_image`** builds), use **`bash ./tools/bazel/ci/ci_fast.sh`** — you still need the same language toolchains as CI where those packages are built (e.g. **Composer** for **`//src/quote`**).
+
 ## Troubleshooting Common Issues
 
 ### Docker Not Running
