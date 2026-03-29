@@ -1,0 +1,15 @@
+# BZ-720: Allowed oci.pull repository names in MODULE.bazel (one per line).
+# When adding a new base image, update this file and docs/bazel/oci-base-allowlist.md.
+debian_bullseye_20251117_slim
+distroless_cc_debian13_nonroot
+distroless_java17_debian12_nonroot
+distroless_java21_debian12_nonroot
+distroless_nodejs22_debian12_nonroot
+distroless_nodejs24_debian13_nonroot
+distroless_static_debian12_nonroot
+dotnet_aspnet_10
+envoy_v134_latest
+nginx_unprivileged_1290_alpine322_otel
+php_84_cli_alpine322
+python_312_slim_bookworm
+ruby_348_slim_bookworm

@@ -37,3 +37,6 @@ test:unit --test_tag_filters=unit,-integration,-e2e,-trace,-slow,-manual
 test:integration --test_tag_filters=integration,-e2e,-trace,-slow,-manual
 test:e2e --test_tag_filters=e2e
 test:trace --test_tag_filters=trace
+
+# BZ-800 / M5: optional remote cache and local overrides (gitignored — see docs/bazel/remote-cache.md).
+try-import %workspace%/.bazelrc.user

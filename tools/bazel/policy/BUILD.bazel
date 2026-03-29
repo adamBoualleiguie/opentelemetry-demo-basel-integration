@@ -1,0 +1,14 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+"""BZ-720: policy checks for MODULE.bazel oci.pull bases."""
+
+sh_test(
+    name = "oci_allowlist_test",
+    srcs = ["run_oci_allowlist_check.sh"],
+    data = [
+        "check_oci_allowlist.py",
+        "oci_base_allowlist.txt",
+    ],
+    tags = ["unit"],
+)

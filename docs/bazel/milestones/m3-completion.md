@@ -1125,6 +1125,7 @@ bazel build //src/frontend:frontend_image //src/frontend:frontend_load --config=
 | `docs/bazel/test-tags.md` | BZ-130 test tag convention. |
 | `docs/bazel/service-tracker.md` | Per-service B/T/I/CI snapshot. |
 | `docs/bazel/milestones/m4-completion.md` | **M4** playbook — CI Bazel-first, BZ-122/123, BZ-631, BZ-081, BZ-110, BZ-611–613. |
+| `docs/bazel/milestones/m5-completion.md` | **M5** playbook — BZ-633, BZ-720–723, BZ-132/133, BZ-632, BZ-800, BZ-811/812. |
 
 ---
 

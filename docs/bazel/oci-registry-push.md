@@ -41,6 +41,10 @@ If **`repository`** is fixed in **`BUILD.bazel`**, you can omit **`--repository`
 
 **Read-only PRs:** do not run **`oci_push`** on untrusted forks without guarding secrets. Prefer **`workflow_dispatch`** or **`push` to `main` / release tags** for publish jobs (**BZ-633**, M5).
 
+### Release workflow (this fork)
+
+**`.github/workflows/bazel-release-oci.yml`** runs on **`release: published`** and **`workflow_dispatch`**: builds **`//src/checkout:checkout_image`**, loads **`otel/demo-checkout:bazel`**, attaches an **SBOM** (**BZ-721**), runs an **Anchore** vulnerability scan (**BZ-722**, non-blocking by default), and **pushes** only when the repository secret **`BAZEL_CHECKOUT_PUSH_REPOSITORY`** is set (full image path, e.g. **`ghcr.io/org/demo-checkout-bazel`**). **`docker/login-action`** uses **`GITHUB_TOKEN`** for GHCR.
+
 ## Rolling out more services
 
 Copy the **`oci_push`** block from **`src/checkout/BUILD.bazel`**, point **`image`** at the service’s **`oci_image`**, and document the target in **`docs/bazel/oci-policy.md`** (BZ-122 matrix).

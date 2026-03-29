@@ -7,7 +7,7 @@ This note records the **chosen direction** for building container images with Ba
 | Topic | Choice | Rationale |
 |-------|--------|-----------|
 | **Rule set** | **`rules_oci`** (Bazel Central Registry) for `oci_image` / layering | Hermetic, Bzlmod-friendly, aligns with modern Bazel OCI workflows; avoids legacy `container_image` patterns where possible. |
-| **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review (feeds later BZ-720 policy). |
+| **Base images** | **Pin by digest** in `MODULE.bazel` via **`oci.pull`** | Reproducibility and supply-chain review; **BZ-720** enforcement via **`docs/bazel/oci-base-allowlist.md`**. |
 | **Pilot (BZ-121 + BZ-097)** | **`checkout`** (Go) + **`payment`** (Node) + **`frontend`** (Next) + **four Python services** + **JVM `ad` / `fraud-detection`** + **.NET `accounting`** + **.NET `cart`** + **Rust `shipping`** + **C++ `currency`** + **Ruby `email`** + **Elixir `flagd-ui`** + **PHP `quote`** + **Envoy `frontend-proxy`** + **nginx `image-provider`** — **`oci_image`** + **`oci_load`** each | Proves Go (**static** distroless), Node, Next, Python, JVM, .NET (**aspnet**), Rust (**`rust_binary`** + **distroless `cc`**), C++ (**distroless `cc`**), Ruby, Elixir (**`mix release`**), PHP, **Envoy** (**`envoyproxy/envoy`** + baked YAML), **nginx** (**`nginxinc/nginx-unprivileged`** OTEL + **`/static`**): digest-pinned bases, layering, `docker load`. |
 
 ## BZ-121 pilot (implemented)
@@ -145,6 +145,8 @@ This note records the **chosen direction** for building container images with Ba
 ## BZ-122 / M4 — Dockerfile vs Bazel image matrix
 
 **`component-build-images.yml`** remains the **authoritative** path for **published** multi-arch images (**`linux/amd64`**, **`linux/arm64`**) on PR/push to registries (**Docker Hub** + **GHCR**). Bazel **`oci_image`** targets prove **reproducible** **linux/amd64** builds and support **`docker load`** / optional **`oci_push`** (**BZ-123**).
+
+**M4 closure (this fork):** the backlog phrase *“Docker matrix reduced or delegated”* is met by **delegation** — the matrix is **not** removed; **Bazel** validates images in **`tools/bazel/ci/ci_full.sh`**. **Reducing** matrix rows in favor of **`oci_push`** is **BZ-631** phase 2 (maintainer decisions: **§16** in **`docs/bazel/milestones/m4-completion.md`**).
 
 **Local tag convention:** Bazel **`oci_load`** uses a **`:bazel`** suffix (e.g. **`otel/demo-checkout:bazel`**) so **`docker images`** does not collide with Compose-pulled **`latest-*`** tags.
 

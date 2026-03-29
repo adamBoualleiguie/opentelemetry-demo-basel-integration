@@ -20,6 +20,8 @@ This is **document 5** in the series. It is an **ordered, actionable backlog** t
 
 **Fork note (OpenTelemetry demo + Bazel migration):** Epic **K** tasks **BZ-100–103** (C++, Ruby, PHP, Elixir) are implemented in this tree under the **M3** local IDs **BZ-092–095** (see **`docs/bazel/milestones/m3-completion.md`** §7). Treat **BZ-100–103** as **closed** when those sections are green; the numeric IDs differ from upstream ordering only.
 
+**Fork note (M5 slice):** **BZ-633** (dedicated **`bazel-release-oci.yml`** + optional **`BAZEL_CHECKOUT_PUSH_REPOSITORY`**), **BZ-721**/**722** (Anchore SBOM + informational scan on **`checkout`**), **BZ-720** (allowlist + **`check_oci_allowlist.py`**), **BZ-133** (**`bazel test //... --config=unit --build_tests_only`** in CI scripts), **BZ-800** (**`docs/bazel/remote-cache.md`** + **`.bazelrc.user`**), **BZ-811**/**810**/**812** (**`Makefile`** wrappers, **`docs/bazel/quickstart.md`**, **CONTRIBUTING**), and a **BZ-632** placeholder comment in **`run-integration-tests.yml`** are recorded in **`docs/bazel/milestones/m5-completion.md`**. **BZ-131**/**132**/**723**/**631** phase 2 remain as in that doc.
+
 **How to use this backlog:**
 
 - Execute tasks **in epic order** unless dependencies say otherwise.

@@ -13,6 +13,7 @@ docker-compose.override.yml
 
 # Bazel (root symlinks + output bases)
 /bazel-*
+.bazelrc.user
 
 # Eclipse
 .classpath

@@ -26,8 +26,14 @@ M4 is **not** “rebuild every service from scratch”: M3 already added **`baze
 | **BZ-110** infra inventory | **Done** | **`docs/bazel/service-tracker.md`** § Infra |
 | **Epic K BZ-100–103** closure note | **Done** | **`5-bazel-migration-task-backlog.md`** fork note |
 | **BZ-131** Cypress in Bazel | **Deferred** | **`docs/bazel/frontend-cypress-bazel.md`** |
-| **BZ-631** Dockerfile matrix replacement | **Partial** | Dual-build documented; **checkout** verified via **`ci_full.sh`** (same graph as before); registry matrix still Dockerfile-first |
-| **BZ-133** full `//...` unit sweep | **M5** | **`cart`** added to **`--config=unit`** set |
+| **BZ-631** Dockerfile matrix replacement | **M4 closed (delegation)** | Registry = Dockerfile matrix; **Bazel** = **`ci_full.sh`** proof; **phase 2** = optional **`oci_push`** rows (**§16**) |
+| **BZ-133** full `//...` unit sweep | **Done (M5)** | **`ci_full.sh` / `ci_fast.sh`** use **`bazel test //... --config=unit --build_tests_only`**; **`//src/frontend:lint`** tagged **`unit`** |
+
+### Formal closure (this fork)
+
+For **program tracking**, this repository treats **M4 as complete** for the **scoped** definition in **`m4-completion.md`**: **blocking Bazel CI** (**`bazel_ci`** + **`ci_full.sh`**), **BZ-081**, **BZ-110** inventory, **BZ-122** documentation, **BZ-123** push **pattern**, **BZ-611–613**, and **explicit deferral** of **BZ-131** (see **`docs/bazel/frontend-cypress-bazel.md`**).
+
+The **verbatim** backlog line *“Docker matrix reduced or delegated”* is satisfied here by **delegation**: **registry / multi-arch** images remain **`component-build-images.yml`** (**Dockerfile** matrix); **Bazel** **`oci_image`** graphs are **proven on every PR** via **`ci_full.sh`**. **Reducing** matrix rows in favor of **`oci_push`** is **optional hardening** (**BZ-631** phase 2) — see [§16](#16-questions-only-maintainers-can-answer-strict-m4--phase-2).
 
 ---
 
@@ -47,7 +53,8 @@ M4 is **not** “rebuild every service from scratch”: M3 already added **`baze
 12. [Suggested order inside M4](#12-suggested-order-inside-m4)  
 13. [Verification cheat sheet](#13-verification-cheat-sheet)  
 14. [Risks, scope boundaries, and M5 handoff](#14-risks-scope-boundaries-and-m5-handoff)  
-15. [Related documents](#15-related-documents)
+15. [Related documents](#15-related-documents)  
+16. [Questions only maintainers can answer (strict M4 / phase 2)](#16-questions-only-maintainers-can-answer-strict-m4--phase-2)
 
 ---
 
@@ -66,8 +73,8 @@ M4 is **not** “rebuild every service from scratch”: M3 already added **`baze
 | **Application services** | Go (**checkout**, **product-catalog**), Node (**payment**, **frontend**), Python ×4, JVM (**ad**, **fraud-detection**), .NET (**accounting**, **cart** build+image), Rust (**shipping**), C++ (**currency**), Ruby (**email**), Elixir (**flagd-ui**), PHP (**quote**), Envoy (**frontend-proxy**), nginx (**image-provider**), Expo (**react-native-app** — JS checks + optional APK) have documented **`BUILD.bazel`** graphs per **M3** doc. |
 | **Images** | **`rules_oci`** **`oci_image`** + **`oci_load`** (and **`repo_tags`** like **`otel/demo-<svc>:bazel`**) for migrated services; see **M3** §9 and **BZ-097** §7.7 / §9.14. |
 | **Tests** | **`go_test`**, **`rust_test`**, **`cc_test`**, **`rb_test`**, various **`sh_test`** smokes, **`//src/frontend:lint`**, tagged per **`docs/bazel/test-tags.md`** (**BZ-130**). |
-| **CI today** | **`.github/workflows/checks.yml`** job **`bazel_smoke`** runs a **large** `bazel build` / `bazel test` subset with **`continue-on-error: true`** (still **non-blocking** while rollout stabilizes — **BZ-610** heritage). |
-| **Docker image matrix** | **`.github/workflows/component-build-images.yml`** still builds **every** service image from **Dockerfiles** in a **matrix** (used by **`checks`** via reusable workflow). Bazel images are **not** yet the source of truth for registry tags in that workflow. |
+| **CI today (post-M4)** | **`.github/workflows/checks.yml`** job **`bazel_ci`** (**blocking**) runs **`tools/bazel/ci/ci_full.sh`** with **Bazel disk cache** (**BZ-613**). |
+| **Docker image matrix** | **`.github/workflows/component-build-images.yml`** remains the **registry** path (multi-arch **Dockerfile** builds). **Bazel** proves **`oci_image`** targets in **`ci_full.sh`**; **dual-build** matrix: **`docs/bazel/oci-policy.md`** (**BZ-122**). |
 
 ### 1.2 Explicit gaps carried into M4
 
@@ -77,11 +84,11 @@ M4 is **not** “rebuild every service from scratch”: M3 already added **`baze
 | ~~**No `bazel test //src/cart/...` for xUnit**~~ | **Addressed:** **`//src/cart:cart_dotnet_test`**. |
 | **Image tags: `:bazel` vs upstream** | **Documented** (**BZ-122** table in **`oci-policy.md`**); Compose/registry still use Dockerfile matrix tags. |
 | **`oci_push` in release workflows** | **Pattern** added (**`checkout_push`**); **BZ-633** (M5) wires **`release.yml`**. |
-| **Cypress not a Bazel target** | **BZ-131** (M4). |
-| **`component-build-images.yml` still Dockerfile-only for builds** | **BZ-631** (M4). |
-| **Infra images under `src/` (kafka, opensearch, …)** | **BZ-110** (M4) — **NS** in tracker today. |
+| **Cypress not a Bazel target** | **Deferred** — **`docs/bazel/frontend-cypress-bazel.md`** (**BZ-131**). |
+| **`component-build-images.yml` Dockerfile-first for publish** | **Delegated** for M4 closure; **phase 2** = replace rows with **`oci_push`** / multi-arch policy (**BZ-631**). |
+| **Infra images (kafka, opensearch, …)** | **BZ-110** — rows in **`docs/bazel/service-tracker.md`** § Infra. |
 | **Tracetest as Bazel** | **BZ-132** — backlog **M5**; M4 may only **document** hybrid. |
-| **Full `bazel test //... --config=unit` parity across every language** | **BZ-133** — backlog **M5**; M4 advances **cart** + **frontend** where listed. |
+| **Full `bazel test //... --config=unit` parity across every language** | **BZ-133** — **done** in **M5** (**`m5-completion.md`**); M4 advanced **cart** + **frontend** tags. |
 
 ---
 
@@ -89,14 +96,14 @@ M4 is **not** “rebuild every service from scratch”: M3 already added **`baze
 
 Use these as **definition of done** for “M4 achieved” in this fork (adjust with maintainers if scope is trimmed):
 
-1. **CI authority:** At least one **required** PR check runs **`bazelisk`** **build** and **test** for an agreed target set (not only **`continue-on-error`**), *or* **`bazel_smoke`** is promoted to **blocking** with documented exceptions.  
-2. **BZ-081:** **`bazel test //src/cart/...`** (or a single explicit target) runs **xUnit** tests with **`tags` including `unit`**, or the doc records an explicit **skip policy** with backlog ticket — backlog prefers tests wired.  
-3. **BZ-122 / BZ-631:** A **written matrix** (in **`docs/bazel/service-tracker.md`** or **`oci-policy.md`**) states, per service: **Dockerfile-only**, **Bazel-only**, or **dual**; for **dual**, which tag is canonical for **compose** / **release**. At least **N** services (agree **N** in PR) use Bazel for image artifact in CI **or** Dockerfile path is explicitly **delegated** with rationale.  
-4. **BZ-123 (minimal):** Document **secrets** model (GHCR / Docker Hub) and add **stub or real** **`oci_push`** (or CI **`crane push`**) targets for **one** service as pattern; full release cutover can remain **BZ-633 (M5)**.  
-5. **BZ-611:** **`tools/bazel/ci/ci_fast.sh`** (and optionally **`ci_full.sh`**) exist, are **documented**, and are **invoked from GitHub Actions** (even if thin wrappers at first).  
-6. **BZ-612 / BZ-613:** **Affected-targets** script **or** path-filter documented; **cache** strategy documented (GitHub Actions cache for `~/.cache/bazel` or Bazel disk cache) with **before/after** note for **BZ-003** baselines.  
-7. **BZ-110:** Every **listed** infra path under **`src/`** in the backlog has a **row** in the tracker: **Bazel target**, **Dockerfile passthrough**, or **explicit deferral**.  
-8. **BZ-131 (stretch):** **`bazel test //src/frontend:…`** (or documented **`manual`** e2e) for Cypress; if not feasible in M4, **defer** with ticket and keep **Makefile** path documented.
+1. **CI authority:** **Done** — **`bazel_ci`** (**blocking**) runs **`ci_full.sh`**.  
+2. **BZ-081:** **Done** — **`//src/cart:cart_dotnet_test`**.  
+3. **BZ-122 / BZ-631:** **Done** — matrix in **`oci-policy.md`**; **release** canonical path = **Dockerfile** matrix until phase 2; **Bazel** = local **`:bazel`** tags + CI proof build.  
+4. **BZ-123 (minimal):** **Done** — **`//src/checkout:checkout_push`**, **`docs/bazel/oci-registry-push.md`**. **BZ-633** (release wiring) remains **M5**.  
+5. **BZ-611:** **Done** — **`tools/bazel/ci/`**, invoked from **`checks.yml`**.  
+6. **BZ-612 / BZ-613:** **Done** — **`affected_targets.sh`** (PR hint) + **`actions/cache`** on **`~/.cache/bazel`**; refresh **BZ-003** baselines when convenient.  
+7. **BZ-110:** **Done** — **`docs/bazel/service-tracker.md`** § Infra.  
+8. **BZ-131 (stretch):** **Deferred** with doc — **`docs/bazel/frontend-cypress-bazel.md`** (acceptable for this fork’s M4 closure).
 
 ---
 
@@ -119,7 +126,7 @@ Tasks with **Milestone: M4** in `5-bazel-migration-task-backlog.md`, plus **this
 | **O** | **BZ-611** | `ci_fast.sh` / `ci_full.sh` | M4 | Documented; runnable locally | **Done** |
 | **O** | **BZ-612** | `affected_targets.sh` | M4 | Used in PR workflow | **Done** (hint step) |
 | **O** | **BZ-613** | PR cache | M4 | Measurable improvement documented | **Done** (cache action; refresh **BZ-003** optionally) |
-| **O** | **BZ-631** | `component-build-images.yml` Bazel matrix | M4 | N services on Bazel path | **Partial** — **`ci_full`** builds Bazel images; **Compose publish** still Dockerfile matrix |
+| **O** | **BZ-631** | `component-build-images.yml` Bazel matrix | M4 | N services on Bazel path | **M4 closed** — **delegation** (Dockerfile publish + Bazel proof in **`ci_full`**); **matrix replacement** = phase 2 (**§16**) |
 
 **Out of M4 strict scope (backlog):** **BZ-132** (Tracetest) **M5**; **BZ-633** (release publish) **M5**; **BZ-720+** security **M5**.
 
@@ -386,7 +393,7 @@ See **`docs/bazel/oci-registry-push.md`**.
 | **Multi-arch drift** | Document **amd64-first**; add **arm64** in M5/M6 if needed |
 | **Cypress size** | Keep **`manual`** / nightly job |
 
-**M5 preview (backlog):** **BZ-132** Tracetest, **BZ-633** release publish, **BZ-720** allowlist, **BZ-800** remote cache, **BZ-133** full unit sweep.
+**M5 (see `m5-completion.md`):** **BZ-133** unit sweep, **BZ-633**/**720**/**721**/**722**/**800**/**811**/**810**/**812** landed in this fork; **BZ-132** Tracetest and strict scan gating remain follow-ups.
 
 ---
 
@@ -404,6 +411,20 @@ See **`docs/bazel/oci-registry-push.md`**.
 | `tools/bazel/ci/README.md` | **BZ-611** script usage |
 | `.github/workflows/checks.yml` | **`bazel_ci`** job (**M4**) |
 | `.github/workflows/component-build-images.yml` | Dockerfile matrix (**BZ-631**) |
+| `docs/bazel/milestones/m5-completion.md` | **M5** playbook — release (**BZ-633**), security (**BZ-720–723**), tests (**BZ-132/133**), cache (**BZ-800**), Make/proto (**BZ-811/812**) |
+
+---
+
+## 16. Questions only maintainers can answer (strict M4 / phase 2)
+
+Nothing in this section **blocks** declaring **M4 complete** for this fork (see **Formal closure** above). These are the decisions needed if you want to go **beyond** closure and match a **stricter** reading of the backlog (“**reduce** the Docker matrix” / full **BZ-631**) or expand test scope.
+
+1. **Multi-arch:** Today many **`oci_image`** **base** labels pin **linux/amd64** only. Do you **require linux/arm64** parity with **`component-build-images.yml`** before **dropping** any Dockerfile row for a given service?  
+2. **BZ-631 ordering:** Which **first** service(s) should publish via **`bazel run …:push`** (or CI **`crane`**) to **GHCR** / **Docker Hub** — **checkout** only, or a batch (e.g. Go + static binaries first)?  
+3. **BZ-131 Cypress:** Should the next sprint **add** a **`manual`** **`bazel test`** / nightly job, or keep **Makefile** / **Dockerfile.cypress** only until **M5**?  
+4. **BZ-633:** Is there a **hard date** or **release** after which **tagged** images must come from Bazel, or is **Dockerfile** publishing acceptable long-term alongside Bazel **proof** builds?
+
+Reply with choices (even brief); then **Agent mode** can implement **phase 2** (workflow + **`oci_push`** rows, Cypress wrapper, or **`release.yml`** hooks) accordingly.
 
 ---
 

@@ -1,6 +1,6 @@
 # Service Bazel migration tracker
 
-Snapshot through **M4** (CI Bazel-first slice): playbooks **`docs/bazel/milestones/m3-completion.md`** (services) and **`docs/bazel/milestones/m4-completion.md`** (CI / matrix / push). Update as milestones progress.
+Snapshot through **M4** (CI Bazel-first slice): **`docs/bazel/milestones/m3-completion.md`** (services), **`docs/bazel/milestones/m4-completion.md`** (CI / matrix / push). **M5** (release-adjacent Bazel OCI for **checkout**, allowlist, unit sweep, SBOM/scan workflow): **`docs/bazel/milestones/m5-completion.md`**. Update as milestones progress.
 
 Legend: **NS** = Not started | **P** = Proto in Bazel | **B** = Build | **T** = Test | **I** = Image | **CI** = included in **blocking** **`bazel_ci`** job (**`tools/bazel/ci/ci_full.sh`**)
 

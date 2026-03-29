@@ -20,6 +20,8 @@ run() {
   "$@"
 }
 
+run python3 "${ROOT}/tools/bazel/policy/check_oci_allowlist.py"
+
 run "${BAZEL}" build \
   //:smoke \
   //pb:demo_proto \
@@ -46,19 +48,6 @@ run "${BAZEL}" build \
   //src/image-provider:nginx_compose_defaults_conf \
   --config=ci
 
-run "${BAZEL}" test \
-  //src/checkout/... \
-  //src/product-catalog/... \
-  //src/shipping/... \
-  //src/currency:currency_proto_smoke_test \
-  //src/email:email_gems_smoke_test \
-  //src/flagd-ui:flagd_ui_mix_test \
-  //src/quote:quote_composer_smoke_test \
-  //src/react-native-app:rn_js_checks \
-  //src/frontend-proxy:frontend_proxy_config_test \
-  //src/image-provider:image_provider_config_test \
-  //src/cart:cart_dotnet_test \
-  //src/frontend:lint \
-  --config=ci
+run "${BAZEL}" test //... --config=ci --config=unit --build_tests_only
 
 echo "ci_fast.sh: OK"

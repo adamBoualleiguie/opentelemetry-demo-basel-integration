@@ -76,7 +76,10 @@ js_test(
     chdir = package_name(),
     data = _FRONTEND_LINT_DATA + [":node_modules"],
     entry_point = "eslint_cli.cjs",
-    tags = ["lint"],
+    tags = [
+        "lint",
+        "unit",
+    ],
 )
 
 # --- Production bundle: `next build` → `.next` (standalone + static) ---

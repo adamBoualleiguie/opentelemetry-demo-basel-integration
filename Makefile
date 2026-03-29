@@ -32,6 +32,20 @@ YAMLLINT_VERSION=1.30.0
 .PHONY: all
 all: install-tools markdownlint misspell yamllint
 
+# BZ-811 / M5: thin wrappers — same entrypoints as docs/bazel/quickstart.md and CI.
+.PHONY: bazel-check-oci-allowlist bazel-test-unit bazel-ci-fast bazel-ci-full
+bazel-check-oci-allowlist:
+	python3 ./tools/bazel/policy/check_oci_allowlist.py
+
+bazel-test-unit:
+	bazelisk test //... --config=ci --config=unit --build_tests_only
+
+bazel-ci-fast:
+	bash ./tools/bazel/ci/ci_fast.sh
+
+bazel-ci-full:
+	bash ./tools/bazel/ci/ci_full.sh
+
 $(MISSPELL):
 	cd $(TOOLS_DIR) && go build -o $(MISSPELL_BINARY) github.com/client9/misspell/cmd/misspell
 

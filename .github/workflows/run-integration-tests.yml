@@ -18,6 +18,9 @@ jobs:
     steps:
       - name: check out code
         uses: actions/checkout@v6.0.2
+      # BZ-632 (optional): to drive integration tests from Bazel-built images, document a compose
+      # override or env flag in docs/bazel/milestones/m5-completion.md and prepend image load/push
+      # steps here when maintainers enable that path (depends on BZ-131/BZ-132 image strategy).
       - name: run tracetesting
         run: |
           make build && docker system prune -f && make run-tracetesting
