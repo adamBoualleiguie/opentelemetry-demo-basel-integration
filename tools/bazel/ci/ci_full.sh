@@ -65,7 +65,7 @@ run "${BAZEL}" build \
   //src/image-provider:image_provider_image \
   --config=ci
 
-# BZ-133: single unit-tagged test graph (see docs/bazel/test-tags.md).
+# BZ-133: single unit-tagged test graph (.bazelrc test:unit).
 run "${BAZEL}" test //... --config=ci --config=unit --build_tests_only
 
 run "${BAZEL}" run //:lint --config=ci
