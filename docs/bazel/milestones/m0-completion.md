@@ -1,6 +1,6 @@
 # M0 completion report — Bazel bootstrap
 
-This document records **what was implemented** for milestone **M0** from `5-bazel-migration-task-backlog.md`:
+This document records **what was implemented** for milestone **M0** from `docs/planification/5-bazel-migration-task-backlog.md`:
 
 > **M0:** Bazel runs in the repo; CI has a **non-blocking** Bazel smoke job.
 
@@ -46,7 +46,7 @@ bazelisk query //...
 | **BZ-012** | Root `BUILD.bazel` + smoke | Done | Root `BUILD.bazel` defines `genrule` **`//:smoke`** → `bazel-bin/smoke.txt` with content marker `bazel-m0-smoke-ok`. Verified: `bazelisk build //:smoke --config=ci`. |
 | **BZ-013** | `.bazelrc` profiles | Done | Added `.bazelrc`: `common --enable_bzlmod`; `build:dev`, `build:ci`, `build:release`, `build:integration` placeholders; `test:ci --test_output=errors`. CI smoke uses `--config=ci`. |
 | **BZ-014** | `.bazelignore` | Done | Added `.bazelignore` for `.git`, `node_modules`, Bazel symlinks, RN/Pods, `.venv`, `src/shipping/target`, `.gradle`, `.next`, `out`. Speeds `query` / analysis. |
-| **BZ-015** | `tools/bazel/` skeleton | Done | Created `tools/bazel/defs/`, `ci/`, `platforms/` with README placeholders; lint scripts under `tools/bazel/lint/*.sh`. Matches structure in `2-bazel-architecture-otel-shop-demo.md`. |
+| **BZ-015** | `tools/bazel/` skeleton | Done | Created `tools/bazel/defs/`, `ci/`, `platforms/` with README placeholders; lint scripts under `tools/bazel/lint/*.sh`. Matches structure in `docs/planification/2-bazel-architecture-otel-shop-demo.md`. |
 | **BZ-016** | Buildifier / style convention | Done | Added `docs/bazel/build-style.md` (Buildifier recommendation, Bzlmod preference, license header note). No CI enforcement yet. |
 
 ### Epic C — Repo hygiene targets in Bazel
@@ -129,9 +129,9 @@ bazelisk run //:lint
 
 | Document | Role |
 |----------|------|
-| `5-bazel-migration-task-backlog.md` | Full task IDs and milestones |
-| `2-bazel-architecture-otel-shop-demo.md` | Target layout and diagrams |
-| `4-bazel-dev-environment-ubuntu.md` | Host toolchain checklist |
+| `docs/planification/5-bazel-migration-task-backlog.md` | Full task IDs and milestones |
+| `docs/planification/2-bazel-architecture-otel-shop-demo.md` | Target layout and diagrams |
+| `docs/planification/4-bazel-dev-environment-ubuntu.md` | Host toolchain checklist |
 | `docs/bazel/charter.md` | Migration charter |
 
 ---

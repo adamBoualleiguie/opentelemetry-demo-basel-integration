@@ -4,17 +4,17 @@
 
 Chapters **08** and **12** covered **protobufs** and **container images**. This chapter is the **Python lane**: how the Astronomy Shop ran Python **before** Bazel, what **paradigm** we use now, and how **`rules_python` + Bzlmod** turn **`requirements_lock.txt`** into **`py_binary`** targets and **`oci_load`**-able images.
 
-If your goal is to **manage a Python project with Bazel**, treat this as one concrete reference implementation — not the only possible layout, but one that matches **`1-bazel-integration.md`** (phased migration, pinned deps) and **M3 Epic G** in **`docs/bazel/milestones/m3-completion.md`** (**BZ-060**, **BZ-061**).
+If your goal is to **manage a Python project with Bazel**, treat this as one concrete reference implementation — not the only possible layout, but one that matches **`docs/planification/1-bazel-integration.md`** (phased migration, pinned deps) and **M3 Epic G** in **`docs/bazel/milestones/m3-completion.md`** (**BZ-060**, **BZ-061**).
 
 ---
 
 ## How Python worked in this repo *before* Bazel (baseline)
 
-The root **integration blueprint** (`1-bazel-integration.md`) describes the pre-migration world:
+The **integration blueprint** ([`docs/planification/1-bazel-integration.md`](../planification/1-bazel-integration.md)) describes the pre-migration world:
 
 - **Orchestration:** **`Makefile`** + **Docker Compose** (`docker-compose.yml`, tests compose file).  
 - **Per-service images:** each Python service has a **`Dockerfile`** that typically **`FROM python:…`**, **`COPY requirements.txt`**, **`pip install`**, then copies app code and sets **`CMD`**.  
-- **Developer machines:** contributors might use a **venv** or system Python for ad hoc scripts; **Tier B** in **`4-bazel-dev-environment-ubuntu.md`** calls out Python for **yamllint**, sanity checks, and service work outside containers.
+- **Developer machines:** contributors might use a **venv** or system Python for ad hoc scripts; **Tier B** in **`docs/planification/4-bazel-dev-environment-ubuntu.md`** calls out Python for **yamllint**, sanity checks, and service work outside containers.
 
 **Implications of that model:**
 
@@ -31,7 +31,7 @@ None of that was “wrong” for a demo — it is simply a **different contract*
 
 ## Paradigm we are in now (Python + Bazel)
 
-**Target architecture** (`2-bazel-architecture-otel-shop-demo.md`) places Python on the same **Bazel build graph** as Go, Node, JVM, etc.: **language toolchains** feed **libraries/binaries**, and **OCI** is a **leaf** when you package a **`py_binary`**.
+**Target architecture** (`docs/planification/2-bazel-architecture-otel-shop-demo.md`) places Python on the same **Bazel build graph** as Go, Node, JVM, etc.: **language toolchains** feed **libraries/binaries**, and **OCI** is a **leaf** when you package a **`py_binary`**.
 
 Concretely in this fork:
 
@@ -57,7 +57,7 @@ flowchart TB
   end
 ```
 
-**Concept primer alignment** (`3-bazel-concepts-for-otel-architecture.md`): each **`py_binary`** is a **node** with **declared inputs**; Bazel can **cache** and **parallelize** because those inputs are **not** “whatever was on `$PYTHONPATH` yesterday.”
+**Concept primer alignment** (`docs/planification/3-bazel-concepts-for-otel-architecture.md`): each **`py_binary`** is a **node** with **declared inputs**; Bazel can **cache** and **parallelize** because those inputs are **not** “whatever was on `$PYTHONPATH` yesterday.”
 
 ---
 
@@ -264,9 +264,9 @@ bazelisk build \
 
 | Doc | Relevance |
 |-----|-----------|
-| **`1-bazel-integration.md`** | Phased move to **Bazel-first** builds; **OCI** standardization; **supply-chain** (locks). |
-| **`2-bazel-architecture-otel-shop-demo.md`** | Python on the **language + OCI** branches of the target diagram. |
-| **`3-bazel-concepts-for-otel-architecture.md`** | **Targets**, **DAG**, **hermeticity**, **pinning** — same vocabulary as **`pip.parse`**. |
+| **`docs/planification/1-bazel-integration.md`** | Phased move to **Bazel-first** builds; **OCI** standardization; **supply-chain** (locks). |
+| **`docs/planification/2-bazel-architecture-otel-shop-demo.md`** | Python on the **language + OCI** branches of the target diagram. |
+| **`docs/planification/3-bazel-concepts-for-otel-architecture.md`** | **Targets**, **DAG**, **hermeticity**, **pinning** — same vocabulary as **`pip.parse`**. |
 | **`docs/bazel/milestones/m3-completion.md`** §**4** | Epic **G** acceptance and per-service status. |
 | **`docs/bazel/oci-policy.md`** | Python base digest, **`load-generator`** caveat, image names. |
 

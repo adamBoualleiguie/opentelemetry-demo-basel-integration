@@ -1,6 +1,6 @@
 # M4 milestone — CI Bazel-first; image matrix alignment; test and push depth
 
-This document is the **M4 milestone playbook** for `5-bazel-migration-task-backlog.md`. It mirrors the role of **`m3-completion.md`**, but for the next program phase:
+This document is the **M4 milestone playbook** for `docs/planification/5-bazel-migration-task-backlog.md`. It mirrors the role of **`m3-completion.md`**, but for the next program phase:
 
 1. **Summarizes** the **end-of-M3 state** in this fork (what is already true before M4 work starts).  
 2. **Maps** every backlog item tagged **M4** (and adjacent **M5** items that touch M4 sequencing) to **concrete deliverables**.  
@@ -8,7 +8,7 @@ This document is the **M4 milestone playbook** for `5-bazel-migration-task-backl
 
 > **Backlog definition — M4:**  
 > *“CI default path is Bazel-first (build/test); Docker matrix reduced or delegated.”*  
-> (`5-bazel-migration-task-backlog.md` §2.)
+> (`docs/planification/5-bazel-migration-task-backlog.md` §2.)
 
 M4 is **not** “rebuild every service from scratch”: M3 already added **`bazel build` / `bazel test` / `oci_image`** for the majority of application services. M4 **shifts the authority** of PR and release pipelines toward Bazel, **aligns** published image names with the existing **`component-build-images.yml`** contract where agreed, and **closes** remaining test and automation gaps called out in the backlog.
 
@@ -24,7 +24,7 @@ M4 is **not** “rebuild every service from scratch”: M3 already added **`baze
 | **BZ-122** matrix doc | **Done** | **`docs/bazel/oci-policy.md`** § BZ-122 |
 | **BZ-123** push pattern | **Done** | **`//src/checkout:checkout_push`**, **`docs/bazel/oci-registry-push.md`** |
 | **BZ-110** infra inventory | **Done** | **`docs/bazel/service-tracker.md`** § Infra |
-| **Epic K BZ-100–103** closure note | **Done** | **`5-bazel-migration-task-backlog.md`** fork note |
+| **Epic K BZ-100–103** closure note | **Done** | **`docs/planification/5-bazel-migration-task-backlog.md`** fork note |
 | **BZ-131** Cypress in Bazel | **Deferred** | **`docs/bazel/frontend-cypress-bazel.md`** |
 | **BZ-631** Dockerfile matrix replacement | **M4 closed (delegation)** | Registry = Dockerfile matrix; **Bazel** = **`ci_full.sh`** proof; **phase 2** = optional **`oci_push`** rows (**§16**) |
 | **BZ-133** full `//...` unit sweep | **Done (M5)** | **`ci_full.sh` / `ci_fast.sh`** use **`bazel test //... --config=unit --build_tests_only`**; **`//src/frontend:lint`** tagged **`unit`** |
@@ -109,7 +109,7 @@ Use these as **definition of done** for “M4 achieved” in this fork (adjust w
 
 ## 3. M4 backlog task matrix
 
-Tasks with **Milestone: M4** in `5-bazel-migration-task-backlog.md`, plus **this fork’s** alignment notes.
+Tasks with **Milestone: M4** in `docs/planification/5-bazel-migration-task-backlog.md`, plus **this fork’s** alignment notes.
 
 | Epic | ID | Task | Milestone | Acceptance criteria (from backlog) | Fork note |
 |------|-----|------|-----------|-----------------------------------|-----------|
@@ -207,7 +207,7 @@ No greenfield implementation required for **email**, **quote**, **flagd-ui**, **
 
 **M4 tasks:**
 
-- Update **`5-bazel-migration-task-backlog.md`** cross-reference or add a **fork note** that **BZ-100–103** are satisfied by **BZ-092–095** work (avoid duplicate epics).  
+- Update **`docs/planification/5-bazel-migration-task-backlog.md`** cross-reference or add a **fork note** that **BZ-100–103** are satisfied by **BZ-092–095** work (avoid duplicate epics).  
 - **`service-tracker.md`**: ensure **CI** column reflects **blocking** vs **non-blocking** when M4 flips CI.
 
 ---
@@ -401,7 +401,7 @@ See **`docs/bazel/oci-registry-push.md`**.
 
 | Document | Purpose |
 |----------|---------|
-| `5-bazel-migration-task-backlog.md` | Task IDs and milestone boundaries |
+| `docs/planification/5-bazel-migration-task-backlog.md` | Task IDs and milestone boundaries |
 | `docs/bazel/milestones/m3-completion.md` | M3 implementation narrative |
 | `docs/bazel/service-tracker.md` | B/T/I/CI per service + **BZ-110** infra table |
 | `docs/bazel/oci-policy.md` | BZ-120 / BZ-122 dual matrix |

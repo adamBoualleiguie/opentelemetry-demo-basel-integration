@@ -1,6 +1,6 @@
 # Knowledge base — my Bazel migration journey
 
-This folder is **my** narrated walkthrough of converting the OpenTelemetry Demo (a polyglot monorepo) to **Bazel**, milestone by milestone. I wrote it for three audiences at once:
+This folder is **my** narrated walkthrough of converting the OpenTelemetry Demo (a polyglot monorepo) to **Bazel**, milestone by milestone. For the **full documentation map** (planification series, milestones, upstream readme), start at the root **[README.md](../../README.md)**. I wrote it for three audiences at once:
 
 1. **Future me** — so I do not forget the *why* behind painful choices.  
 2. **Someone learning Bazel** — who learns best by following a real repo, not only tutorials.  

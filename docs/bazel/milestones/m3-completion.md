@@ -1,6 +1,6 @@
 # M3 milestone — majority of application services in Bazel (alignment & conversion playbook)
 
-This document is the **M3 milestone report** for `5-bazel-migration-task-backlog.md`. It does three things:
+This document is the **M3 milestone report** for `docs/planification/5-bazel-migration-task-backlog.md`. It does three things:
 
 1. **Restates** every backlog task that targets **M3** (with epic and acceptance criteria).  
 2. **Explains**, **per application or epic**, how conversion to Bazel is intended to work: stack, today’s entrypoints, ordered steps, proto alignment, tests, and images.  
@@ -1116,7 +1116,7 @@ bazel build //src/frontend:frontend_image //src/frontend:frontend_load --config=
 
 | Document | Purpose |
 |----------|---------|
-| `5-bazel-migration-task-backlog.md` | Source of truth for task IDs and milestones. |
+| `docs/planification/5-bazel-migration-task-backlog.md` | Source of truth for task IDs and milestones. |
 | `docs/bazel/milestones/m1-completion.md` | Proto graph (M1). |
 | `docs/bazel/milestones/m2-completion.md` | Go + payment (M2). |
 | `docs/bazel/proto-policy.md` | Proto single source / drift policy. |

@@ -29,12 +29,12 @@ Supply-chain and SRE conversations almost always want **digest-pinned** bases. T
 
 ## Bazel basics — an image is just another target
 
-From **`3-bazel-concepts-for-otel-architecture.md`**: Bazel builds a **DAG** of targets with declared inputs and outputs. An **OCI image** is one more output type:
+From **`docs/planification/3-bazel-concepts-for-otel-architecture.md`**: Bazel builds a **DAG** of targets with declared inputs and outputs. An **OCI image** is one more output type:
 
 - **`go_binary`** → executable on disk.  
 - **`oci_image`** → image **descriptor + layer blobs** Bazel can pass to **`oci_load`** or **`oci_push`**.
 
-The **architecture blueprint** (`2-bazel-architecture-otel-shop-demo.md`) places **“OCI Image Graph”** beside language toolchains and protos: same graph, different rules at the leaves.
+The **architecture blueprint** (`docs/planification/2-bazel-architecture-otel-shop-demo.md`) places **“OCI Image Graph”** beside language toolchains and protos: same graph, different rules at the leaves.
 
 ```mermaid
 flowchart TB
@@ -68,7 +68,7 @@ A **Dockerfile** is a **linear recipe**:
 2. **`COPY` / `RUN` / `WORKDIR` / `EXPOSE` / `ENTRYPOINT`** — each step creates a **new layer**.  
 3. **`docker build`** runs those steps on your machine (or in CI); the daemon caches layers heuristically.
 
-**Why demos love `:latest`:** it is easy to type. **Why build systems hate it:** CI today and CI tomorrow may pull **different bytes** under the same name. The root **integration blueprint** (`1-bazel-integration.md`) calls out **supply-chain** and **pinned dependencies** as first-class goals; digest pinning is one concrete expression of that.
+**Why demos love `:latest`:** it is easy to type. **Why build systems hate it:** CI today and CI tomorrow may pull **different bytes** under the same name. The **integration blueprint** ([`docs/planification/1-bazel-integration.md`](../planification/1-bazel-integration.md)) calls out **supply-chain** and **pinned dependencies** as first-class goals; digest pinning is one concrete expression of that.
 
 **How this repo still uses Dockerfiles:** **`component-build-images.yml`** remains the **authoritative** path for **published multi-arch** images (`linux/amd64`, `linux/arm64`) for most services. Bazel **`oci_image`** targets prove **reproducible** builds (often **linux/amd64** in practice for a given target), **`docker load`**-able tags, and optional **`oci_push`** — the **dual-build matrix** is documented in **`docs/bazel/oci-policy.md`** (**BZ-122**).
 
@@ -175,23 +175,23 @@ oci_load(
 # Build the image target (CI config if you want parity with workflows)
 bazelisk build //src/checkout:checkout_image --config=ci
 
-# Produce a tarball / load into local Docker (requires Docker CLI/daemon — Tier A in 4-bazel-dev-environment)
+# Produce a tarball / load into local Docker (requires Docker CLI/daemon — Tier A in docs/planification/4-bazel-dev-environment-ubuntu.md)
 bazelisk run //src/checkout:checkout_load
 
 # Confirm the tag the policy promises
 docker images | grep otel/demo-checkout
 ```
 
-**Ubuntu / env reminder** (`4-bazel-dev-environment-ubuntu.md`): **Tier A** already expects **Docker Engine** for Compose. **`oci_load`** is the same family of tooling — you are not replacing Docker overnight; you are adding a **second, graph-based** path.
+**Ubuntu / env reminder** (`docs/planification/4-bazel-dev-environment-ubuntu.md`): **Tier A** already expects **Docker Engine** for Compose. **`oci_load`** is the same family of tooling — you are not replacing Docker overnight; you are adding a **second, graph-based** path.
 
 ---
 
-## How this aligns with the migration story (docs at repo root)
+## How this aligns with the migration story ([`docs/planification/`](../planification/))
 
-- **`1-bazel-integration.md`** — phased move toward **“OCI image build standardized with Bazel image rules”** while **Compose stays stable** early.  
-- **`2-bazel-architecture-otel-shop-demo.md`** — **“G → per-service OCI images → N registry push targets”** in the target diagram.  
-- **`3-bazel-concepts-for-otel-architecture.md`** — **targets**, **hermeticity**, **pinning** — the same vocabulary **`oci.pull`** implements.  
-- **`4-bazel-dev-environment-ubuntu.md`** — **Tier C** adds Bazel/Bazelisk; Docker remains the runtime surface for **`docker load`** / Compose.
+- **`docs/planification/1-bazel-integration.md`** — phased move toward **“OCI image build standardized with Bazel image rules”** while **Compose stays stable** early.  
+- **`docs/planification/2-bazel-architecture-otel-shop-demo.md`** — **“G → per-service OCI images → N registry push targets”** in the target diagram.  
+- **`docs/planification/3-bazel-concepts-for-otel-architecture.md`** — **targets**, **hermeticity**, **pinning** — the same vocabulary **`oci.pull`** implements.  
+- **`docs/planification/4-bazel-dev-environment-ubuntu.md`** — **Tier C** adds Bazel/Bazelisk; Docker remains the runtime surface for **`docker load`** / Compose.
 
 **Milestones:** **M3** completion narrative (**`docs/bazel/milestones/m3-completion.md`**) covers Epic **M** (**BZ-120**–**121**) and pilots; **M4** (**`m4-completion.md`**) covers the **Dockerfile vs Bazel matrix** documentation and **`oci_push`** supplements (**BZ-122**, **BZ-123**, **BZ-631**). The single table you want for “who is dual-build vs Dockerfile-only” is **`docs/bazel/oci-policy.md`** § **BZ-122 / M4**.
 

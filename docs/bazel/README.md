@@ -11,6 +11,6 @@
 | [risk-register.md](./risk-register.md) | Risks and mitigations |
 | [build-style.md](./build-style.md) | Starlark formatting (Buildifier) |
 
-Planning series (repo root): `1-bazel-integration.md` … `5-bazel-migration-task-backlog.md`, `4-bazel-dev-environment-ubuntu.md`.
+Planning series: **[`docs/planification/`](../planification/README.md)** — `1-bazel-integration.md` … `5-bazel-migration-task-backlog.md` (see index for links).
 
 **Personal journey / teaching narrative (first-person):** [`knowledge-base/README.md`](../knowledge-base/README.md) — sequenced chapters **`01`–`04`**, **`06`–`40`** (no `05`; Bzlmod is in chapter **03** Part B only).

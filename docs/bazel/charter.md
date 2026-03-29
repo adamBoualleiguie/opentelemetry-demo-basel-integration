@@ -34,5 +34,5 @@ For each `src/<service>` (tracked in `service-tracker.md`):
 
 ## Communication
 
-- Use PR descriptions referencing backlog IDs (`BZ-xxx` from `5-bazel-migration-task-backlog.md`).
+- Use PR descriptions referencing backlog IDs (`BZ-xxx` from `docs/planification/5-bazel-migration-task-backlog.md`).
 - Record milestone completion under `docs/bazel/milestones/` (e.g. `m0-completion.md`, `m1-completion.md`).

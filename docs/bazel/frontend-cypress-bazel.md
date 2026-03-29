@@ -24,4 +24,4 @@
 # bazel test //src/frontend:cypress_e2e --config=e2e
 ```
 
-Track progress in **`docs/bazel/milestones/m4-completion.md`** and **`5-bazel-migration-task-backlog.md`** §17.
+Track progress in **`docs/bazel/milestones/m4-completion.md`** and **`docs/planification/5-bazel-migration-task-backlog.md`** §17.

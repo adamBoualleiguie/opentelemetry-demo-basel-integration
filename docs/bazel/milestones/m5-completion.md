@@ -1,6 +1,6 @@
 # M5 milestone — release Bazel-first; security gates; test and cache depth
 
-This document is the **M5 milestone playbook** for `5-bazel-migration-task-backlog.md`. It mirrors **`m3-completion.md`** / **`m4-completion.md`**: backlog alignment, handoff, workstreams, commands, CI touchpoints, and **M5 vs M6** boundaries. The table below records what is **implemented in this fork**; narrative sections below remain the program guide.
+This document is the **M5 milestone playbook** for `docs/planification/5-bazel-migration-task-backlog.md`. It mirrors **`m3-completion.md`** / **`m4-completion.md`**: backlog alignment, handoff, workstreams, commands, CI touchpoints, and **M5 vs M6** boundaries. The table below records what is **implemented in this fork**; narrative sections below remain the program guide.
 
 ### Implementation status (this fork — M5 slice landed)
 
@@ -357,7 +357,7 @@ make bazel-ci-full
 
 | Document | Purpose |
 |----------|---------|
-| `5-bazel-migration-task-backlog.md` | Source of truth for IDs and milestones |
+| `docs/planification/5-bazel-migration-task-backlog.md` | Source of truth for IDs and milestones |
 | `docs/bazel/milestones/m4-completion.md` | M4 closure + **§16** maintainer decisions |
 | `docs/bazel/milestones/m3-completion.md` | Service + OCI narrative |
 | `docs/bazel/oci-policy.md` | BZ-122 matrix; **BZ-720** feeds off **`MODULE.bazel`** |

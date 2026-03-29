@@ -1,6 +1,6 @@
 # OCI / container image policy (BZ-120)
 
-This note records the **chosen direction** for building container images with Bazel in this fork, per **`5-bazel-migration-task-backlog.md`** epic **M — OCI images** (BZ-120).
+This note records the **chosen direction** for building container images with Bazel in this fork, per **`docs/planification/5-bazel-migration-task-backlog.md`** epic **M — OCI images** (BZ-120).
 
 ## Decision (M3)
 

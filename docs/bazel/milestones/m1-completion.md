@@ -1,6 +1,6 @@
 # M1 completion report — Protobuf graph in Bazel
 
-This document records **what was implemented** for milestone **M1** from `5-bazel-migration-task-backlog.md`:
+This document records **what was implemented** for milestone **M1** from `docs/planification/5-bazel-migration-task-backlog.md`:
 
 > **M1:** Proto graph in Bazel; CI protobuf gate uses Bazel **(dual-run)** with the existing Docker/Make flow.
 
@@ -108,9 +108,9 @@ Older docs reference `//proto:go_grpc_compiler`. **rules_go 0.53** uses:
 
 | Document | Role |
 |----------|------|
-| `5-bazel-migration-task-backlog.md` | Full BZ IDs |
+| `docs/planification/5-bazel-migration-task-backlog.md` | Full BZ IDs |
 | `docs/bazel/proto-policy.md` | BZ-037 policy |
-| `2-bazel-architecture-otel-shop-demo.md` | Target architecture |
+| `docs/planification/2-bazel-architecture-otel-shop-demo.md` | Target architecture |
 | `milestones/m0-completion.md` | Prior milestone |
 
 ---

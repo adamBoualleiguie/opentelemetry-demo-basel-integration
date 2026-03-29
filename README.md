@@ -1,165 +1,133 @@
 <!-- markdownlint-disable-next-line -->
-# <img src="https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png" alt="OTel logo" width="45"> OpenTelemetry Demo
+# <img src="https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png" alt="OTel logo" width="45"> OpenTelemetry Demo — **Bazel migration fork**
 
-[![Slack](https://img.shields.io/badge/slack-@cncf/otel/demo-brightgreen.svg?logo=slack)](https://cloud-native.slack.com/archives/C03B4CWV4DA)
-[![Version](https://img.shields.io/github/v/release/open-telemetry/opentelemetry-demo?color=blueviolet)](https://github.com/open-telemetry/opentelemetry-demo/releases)
-[![Commits](https://img.shields.io/github/commits-since/open-telemetry/opentelemetry-demo/latest?color=ff69b4&include_prereleases)](https://github.com/open-telemetry/opentelemetry-demo/graphs/commit-activity)
-[![Downloads](https://img.shields.io/docker/pulls/otel/demo)](https://hub.docker.com/r/otel/demo)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?color=red)](https://github.com/open-telemetry/opentelemetry-demo/blob/main/LICENSE)
 [![Integration Tests](https://github.com/open-telemetry/opentelemetry-demo/actions/workflows/run-integration-tests.yml/badge.svg)](https://github.com/open-telemetry/opentelemetry-demo/actions/workflows/run-integration-tests.yml)
-[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/opentelemetry-demo)](https://artifacthub.io/packages/helm/opentelemetry-helm/opentelemetry-demo)
-[![FOSSA Status](https://app.fossa.com/api/projects/custom%2B162%2Fgithub.com%2Fopen-telemetry%2Fopentelemetry-demo.svg?type=shield&issueType=license)](https://app.fossa.com/projects/custom%2B162%2Fgithub.com%2Fopen-telemetry%2Fopentelemetry-demo?ref=badge_shield&issueType=license)
-[![FOSSA Status](https://app.fossa.com/api/projects/custom%2B162%2Fgithub.com%2Fopen-telemetry%2Fopentelemetry-demo.svg?type=shield&issueType=security)](https://app.fossa.com/projects/custom%2B162%2Fgithub.com%2Fopen-telemetry%2Fopentelemetry-demo?ref=badge_shield&issueType=security)
-[![OpenSSF Scorecard for opentelemetry-demo](https://api.scorecard.dev/projects/github.com/open-telemetry/opentelemetry-demo/badge)](https://scorecard.dev/viewer/?uri=github.com/open-telemetry/opentelemetry-demo)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9247/badge)](https://www.bestpractices.dev/en/projects/9247)
 
-## Welcome to the OpenTelemetry Astronomy Shop Demo
+This repository is a **practical, step-by-step example** of integrating **[Bazel](https://bazel.build/)** into a **polyglot monorepo**: the **[OpenTelemetry Astronomy Shop](https://opentelemetry.io/docs/demo/)** — many languages (Go, Node, Python, JVM, .NET, Rust, C++, Ruby, Elixir, PHP, …), Docker Compose for runtime, and container images built both **via Dockerfiles** and **via Bazel (`rules_oci`)**.
 
-This repository contains the OpenTelemetry Astronomy Shop, a microservice-based
-distributed system intended to illustrate the implementation of OpenTelemetry in
-a near real-world environment.
+**What you can learn here**
 
-Our goals are threefold:
+- How to **plan** a migration (milestones M0–M6, task IDs, backlog).
+- How **Bzlmod** (`MODULE.bazel`, lockfile, extensions) anchors a real workspace.
+- How **one CI graph** (`ci_full.sh`, tag-filtered tests) gates a heterogeneous repo.
+- How **dual build tracks** (Compose + Bazel OCI) coexist without pretending they are identical.
 
-- Provide a realistic example of a distributed system that can be used to
-  demonstrate OpenTelemetry instrumentation and observability.
-- Build a base for vendors, tooling authors, and others to extend and
-  demonstrate their OpenTelemetry integrations.
-- Create a living example for OpenTelemetry contributors to use for testing new
-  versions of the API, SDK, and other components or enhancements.
+**Quick start (run the shop)** — same as upstream: Docker or Kubernetes — see **[OpenTelemetry demo docs](https://opentelemetry.io/docs/demo/)** or the preserved upstream-style readme: **[`docs/otel-readme.md`](docs/otel-readme.md)** (badges, vendor table, maintainers).
 
-We've already made [huge
-progress](https://github.com/open-telemetry/opentelemetry-demo/blob/main/CHANGELOG.md),
-and development is ongoing. We hope to represent the full feature set of
-OpenTelemetry across its languages in the future.
+**Quick start (Bazel in this fork)**
 
-If you'd like to help (**which we would love**), check out our [contributing
-guidance](./CONTRIBUTING.md).
+```bash
+# Full graph parity with GitHub Actions bazel_ci
+bash ./tools/bazel/ci/ci_full.sh
 
-If you'd like to extend this demo or maintain a fork of it, read our
-[fork guidance](https://opentelemetry.io/docs/demo/forking/).
+# Faster loop (skips most oci_image builds)
+bash ./tools/bazel/ci/ci_fast.sh
 
-## Quick start
+# Unit tests only
+bazelisk test //... --config=ci --config=unit --build_tests_only
+```
 
-You can be up and running with the demo in a few minutes. Check out the docs for
-your preferred deployment method:
+See **[`CONTRIBUTING.md`](CONTRIBUTING.md)** for toolchain expectations and **[`docs/bazel/quickstart.md`](docs/bazel/quickstart.md)** for a short command table.
 
-- [Docker](https://opentelemetry.io/docs/demo/docker_deployment/)
-- [Kubernetes](https://opentelemetry.io/docs/demo/kubernetes_deployment/)
+---
 
-## Documentation
+## Documentation map
 
-For detailed documentation, see [Demo Documentation][docs]. If you're curious
-about a specific feature, the [docs landing page][docs] can point you in the
-right direction.
+Use this as a **learning path**: strategy → architecture → concepts → environment → backlog → narrated knowledge base → technical milestone reports.
 
-## Demos featuring the Astronomy Shop
+### 1) Planification (strategy series)
 
-We welcome any vendor to fork the project to demonstrate their services and
-adding a link below. The community is committed to maintaining the project and
-keeping it up to date for you.
+**Index:** [`docs/planification/README.md`](docs/planification/README.md)
 
-|                           |                |                                  |
-|---------------------------|----------------|----------------------------------|
-| [AlibabaCloud LogService] | [Grafana Labs] | [Sentry]                         |
-| [Apache Doris]            | [Guance]       | [ServiceNow Cloud Observability] |
-| [AppDynamics]             | [Honeycomb.io] | [SigNoz]                         |
-| [Aspecto]                 | [Instana]      | [SolarWinds Observability]       |
-| [Axiom]                   | [Kloudfuse]    | [Splunk]                         |
-| [Axoflow]                 | [Kopai]        | [Sumo Logic]                     |
-| [Azure Data Explorer]     | [Last9]        | [TelemetryHub]                   |
-| [Causely]                 | [Liatrio]      | [Teletrace]                      |
-| [ClickStack]              | [Logz.io]      | [Tinybird]                       |
-| [Coralogix]               | [New Relic]    | [Tracetest]                      |
-| [Dash0]                   | [Oodle]        | [Tsuga]                          |
-| [Datadog]                 | [OpenObserve]  | [Uptrace]                        |
-| [Dynatrace]               | [OpenSearch]   | [VictoriaMetrics]                |
-| [Elastic]                 | [Oracle]       |                                  |
-| [Google Cloud]            | [Parseable]    |                                  |
+| Doc | What it is |
+|-----|------------|
+| [**1 — Bazel integration**](docs/planification/1-bazel-integration.md) | **Why** adopt Bazel here: value, risks, phased rollout, CI/security direction — the “should we?” and “in what order?” story. |
+| [**2 — Architecture (Astronomy Shop)**](docs/planification/2-bazel-architecture-otel-shop-demo.md) | **Target shape**: repo layout, diagrams, per-service mapping, OCI graph, test taxonomy — the blueprint the migration implements. |
+| [**3 — Concepts for OTel architecture**](docs/planification/3-bazel-concepts-for-otel-architecture.md) | **Vocabulary**: workspace, package, target, DAG, hermeticity, platforms — read this before fighting Starlark errors. |
+| [**4 — Dev environment (Ubuntu)**](docs/planification/4-bazel-dev-environment-ubuntu.md) | **Machine setup**: tiers of tooling (Docker, languages, Bazelisk) so local and CI match what `BUILD` files assume. |
+| [**5 — Migration task backlog**](docs/planification/5-bazel-migration-task-backlog.md) | **Work breakdown**: epics, **BZ-xxx** IDs, acceptance criteria — the checklist that turns “M3” into concrete tasks. |
+
+### 2) Knowledge base (narrated walkthrough, **01 → 40**)
+
+First-person **I**-style chapters: commands, diagrams, interview lines. Read in order after skimming planification.
+
+| Chapters | Theme |
+|----------|--------|
+| [**01**](docs/knowledge-base/01-the-opentelemetry-astronomy-shop-demo.md) – [**04**](docs/knowledge-base/04-bazel-core-ideas-i-wish-i-knew-on-day-one.md) | What the demo is, **before Bazel**, planning + **Bzlmod** (ch. 03), **core Bazel ideas**. |
+| [**06**](docs/knowledge-base/06-milestone-m0-smoke-lint-and-ci-whisper.md) – [**12**](docs/knowledge-base/12-rules-oci-oci-pull-and-digests.md) | **M0–M2**, governance, **M1 protos**, Gazelle, build hygiene, **`oci.pull`** / digests. |
+| [**13**](docs/knowledge-base/13-language-python-services-and-pip.md) – [**24**](docs/knowledge-base/24-react-native-android-and-the-expo-edges.md) | **Language lanes**: Python, Node/payment, Next frontend, JVM, .NET, Rust, C++, Ruby, Elixir, PHP, Envoy/nginx, **React Native / Android**. |
+| [**25**](docs/knowledge-base/25-test-tags-flakes-network-and-sh-test-strategy.md) – [**31**](docs/knowledge-base/31-remote-cache-bazelrc-user-and-ci-secrets.md) | **Test tags**, **M3** recap, **dual OCI** policy, **`oci_push`**, **M4 CI**, **M5** allowlist/SBOM, **remote cache**. |
+| [**32**](docs/knowledge-base/32-make-wrappers-quickstart-and-contributing-notes.md) – [**40**](docs/knowledge-base/40-git-history-as-my-lab-notebook.md) | Make wrappers, deferred Cypress/Tracetest, **debugging**, **interview patterns**, cheat sheet, runfiles, lockfile, reading errors, **git history** as syllabus. |
+
+**Index & reading order:** [`docs/knowledge-base/README.md`](docs/knowledge-base/README.md) · **Chapter 05** is intentionally omitted (Bzlmod is covered in **chapter 03**).
+
+<details>
+<summary><strong>One-line blurbs (all knowledge-base chapters)</strong></summary>
+
+| # | File | In one sentence |
+|---|------|-----------------|
+| 01 | [`01-the-opentelemetry-astronomy-shop-demo.md`](docs/knowledge-base/01-the-opentelemetry-astronomy-shop-demo.md) | What the Astronomy Shop is and how observability fits. |
+| 02 | [`02-what-this-repo-was-before-bazel.md`](docs/knowledge-base/02-what-this-repo-was-before-bazel.md) | Make, Compose, Dockerfiles, and classic CI **before** Bazel. |
+| 03 | [`03-how-i-used-the-planning-doc-series.md`](docs/knowledge-base/03-how-i-used-the-planning-doc-series.md) | Milestones, BZ IDs, epics, **`MODULE.bazel`** / lock / extensions. |
+| 04 | [`04-bazel-core-ideas-i-wish-i-knew-on-day-one.md`](docs/knowledge-base/04-bazel-core-ideas-i-wish-i-knew-on-day-one.md) | Graph, hermeticity, analysis vs execution, tags — day-one vocabulary. |
+| 06 | [`06-milestone-m0-smoke-lint-and-ci-whisper.md`](docs/knowledge-base/06-milestone-m0-smoke-lint-and-ci-whisper.md) | **M0**: smoke target, Bazel in CI, lint parity. |
+| 07 | [`07-governance-charter-baselines-and-risk.md`](docs/knowledge-base/07-governance-charter-baselines-and-risk.md) | Charter, baselines, risk register. |
+| 08 | [`08-milestone-m1-protobufs-as-the-spine.md`](docs/knowledge-base/08-milestone-m1-protobufs-as-the-spine.md) | **M1**: protos as the shared spine. |
+| 09 | [`09-gazelle-go-importpaths-and-sanity.md`](docs/knowledge-base/09-gazelle-go-importpaths-and-sanity.md) | Gazelle, Go import paths, sanity checks. |
+| 10 | [`10-milestone-m2-first-language-wave.md`](docs/knowledge-base/10-milestone-m2-first-language-wave.md) | **M2**: first full Go wave end-to-end. |
+| 11 | [`11-build-style-buildifier-and-bazelignore.md`](docs/knowledge-base/11-build-style-buildifier-and-bazelignore.md) | Buildifier, `.bazelignore`, repo hygiene. |
+| 12 | [`12-rules-oci-oci-pull-and-digests.md`](docs/knowledge-base/12-rules-oci-oci-pull-and-digests.md) | `rules_oci`, digest-pinned bases. |
+| 13 | [`13-language-python-services-and-pip.md`](docs/knowledge-base/13-language-python-services-and-pip.md) | Python services, `pip` / Bazel. |
+| 14 | [`14-language-node-payment-and-npm-with-aspect-rules-js.md`](docs/knowledge-base/14-language-node-payment-and-npm-with-aspect-rules-js.md) | Payment service, **Aspect rules_js**, npm/pnpm. |
+| 15 | [`15-language-nextjs-frontend-the-beast.md`](docs/knowledge-base/15-language-nextjs-frontend-the-beast.md) | Next.js frontend, `next_build`, memory. |
+| 16 | [`16-language-jvm-ad-and-kotlin-fraud-detection.md`](docs/knowledge-base/16-language-jvm-ad-and-kotlin-fraud-detection.md) | JVM **ad**, Kotlin **fraud-detection**. |
+| 17 | [`17-language-dotnet-accounting-and-cart.md`](docs/knowledge-base/17-language-dotnet-accounting-and-cart.md) | .NET **accounting** and **cart**. |
+| 18 | [`18-language-rust-shipping.md`](docs/knowledge-base/18-language-rust-shipping.md) | Rust **shipping**. |
+| 19 | [`19-language-cpp-currency-and-proto-smoke.md`](docs/knowledge-base/19-language-cpp-currency-and-proto-smoke.md) | C++ **currency**, proto smoke. |
+| 20 | [`20-language-ruby-email-and-bundle-vendoring.md`](docs/knowledge-base/20-language-ruby-email-and-bundle-vendoring.md) | Ruby **email**, Bundler vendoring. |
+| 21 | [`21-language-elixir-flagd-ui-and-custom-mix-release.md`](docs/knowledge-base/21-language-elixir-flagd-ui-and-custom-mix-release.md) | Elixir **flagd-ui**, Mix release. |
+| 22 | [`22-language-php-quote-and-composer.md`](docs/knowledge-base/22-language-php-quote-and-composer.md) | PHP **quote**, Composer. |
+| 23 | [`23-envoy-nginx-baked-config-and-oci.md`](docs/knowledge-base/23-envoy-nginx-baked-config-and-oci.md) | Envoy + nginx edge, baked config OCI. |
+| 24 | [`24-react-native-android-and-the-expo-edges.md`](docs/knowledge-base/24-react-native-android-and-the-expo-edges.md) | Expo / RN, Android APK, hermetic SDK. |
+| 25 | [`25-test-tags-flakes-network-and-sh-test-strategy.md`](docs/knowledge-base/25-test-tags-flakes-network-and-sh-test-strategy.md) | Tags, `requires-network`, **`sh_test`** strategy. |
+| 26 | [`26-milestone-m3-when-the-wave-crashed-in-a-good-way.md`](docs/knowledge-base/26-milestone-m3-when-the-wave-crashed-in-a-good-way.md) | **M3** breadth recap. |
+| 27 | [`27-oci-policy-dual-build-dockerfile-vs-bazel.md`](docs/knowledge-base/27-oci-policy-dual-build-dockerfile-vs-bazel.md) | Dockerfile matrix vs Bazel OCI. |
+| 28 | [`28-oci-push-checkout-and-registry-auth.md`](docs/knowledge-base/28-oci-push-checkout-and-registry-auth.md) | `oci_push` pilot on **checkout**. |
+| 29 | [`29-milestone-m4-when-ci-became-the-boss.md`](docs/knowledge-base/29-milestone-m4-when-ci-became-the-boss.md) | **M4**: `bazel_ci`, `ci_full.sh`. |
+| 30 | [`30-milestone-m5-allowlist-sbom-release-workflow.md`](docs/knowledge-base/30-milestone-m5-allowlist-sbom-release-workflow.md) | **M5**: allowlist, SBOM, release workflow. |
+| 31 | [`31-remote-cache-bazelrc-user-and-ci-secrets.md`](docs/knowledge-base/31-remote-cache-bazelrc-user-and-ci-secrets.md) | Remote cache, `.bazelrc.user`. |
+| 32 | [`32-make-wrappers-quickstart-and-contributing-notes.md`](docs/knowledge-base/32-make-wrappers-quickstart-and-contributing-notes.md) | Make targets, quickstart notes. |
+| 33 | [`33-cypress-tracetest-and-what-i-deferred-on-purpose.md`](docs/knowledge-base/33-cypress-tracetest-and-what-i-deferred-on-purpose.md) | Deferred Cypress / Tracetest. |
+| 34 | [`34-debugging-playbook-what-usually-broke.md`](docs/knowledge-base/34-debugging-playbook-what-usually-broke.md) | Debugging playbook. |
+| 35 | [`35-interview-mode-patterns-i-can-defend.md`](docs/knowledge-base/35-interview-mode-patterns-i-can-defend.md) | Interview-defensible patterns. |
+| 36 | [`36-appendix-cheat-sheet-and-reading-order.md`](docs/knowledge-base/36-appendix-cheat-sheet-and-reading-order.md) | Cheat sheet & order. |
+| 37 | [`37-starlark-runfiles-and-why-scripts-break-in-test.md`](docs/knowledge-base/37-starlark-runfiles-and-why-scripts-break-in-test.md) | Runfiles and `sh_test`. |
+| 38 | [`38-module-bazel-lock-and-reproducible-fetches.md`](docs/knowledge-base/38-module-bazel-lock-and-reproducible-fetches.md) | `MODULE.bazel.lock` discipline. |
+| 39 | [`39-how-i-read-a-bazel-error-without-rage-quitting.md`](docs/knowledge-base/39-how-i-read-a-bazel-error-without-rage-quitting.md) | Reading Bazel errors systematically. |
+| 40 | [`40-git-history-as-my-lab-notebook.md`](docs/knowledge-base/40-git-history-as-my-lab-notebook.md) | Git history as migration syllabus. |
+
+</details>
+
+### 3) Technical Bazel docs & milestones
+
+| Area | Entry |
+|------|--------|
+| **Index** | [`docs/bazel/README.md`](docs/bazel/README.md) |
+| **M0–M5 reports** | [`docs/bazel/milestones/`](docs/bazel/milestones/) (`m0-completion.md` … `m5-completion.md`) |
+| **Test tags** | [`docs/bazel/test-tags.md`](docs/bazel/test-tags.md) |
+| **OCI policy / push / allowlist** | [`docs/bazel/oci-policy.md`](docs/bazel/oci-policy.md), [`docs/bazel/oci-registry-push.md`](docs/bazel/oci-registry-push.md), [`docs/bazel/oci-base-allowlist.md`](docs/bazel/oci-base-allowlist.md) |
+| **Charter & risk** | [`docs/bazel/charter.md`](docs/bazel/charter.md), [`docs/bazel/risk-register.md`](docs/bazel/risk-register.md), [`docs/bazel/baselines.md`](docs/bazel/baselines.md) |
+
+### 4) Upstream demo readme (vendors, badges, maintainers)
+
+- **[`docs/otel-readme.md`](docs/otel-readme.md)** — original-style OpenTelemetry Demo README moved here so the root stays migration-focused.
+
+---
 
 ## Contributing
 
-To get involved with the project see our [CONTRIBUTING](CONTRIBUTING.md)
-documentation. Our [SIG Calls](CONTRIBUTING.md#join-a-sig-call) are every other
-Wednesday at 8:30 AM PST and anyone is welcome.
+See **[`CONTRIBUTING.md`](CONTRIBUTING.md)**. Align Bazel changes with **[`docs/planification/5-bazel-migration-task-backlog.md`](docs/planification/5-bazel-migration-task-backlog.md)** and milestone docs under **`docs/bazel/milestones/`**.
 
-### Maintainers
+## License
 
-- [Cyrille Le Clerc](https://github.com/cyrille-leclerc), Grafana Labs
-- [Juliano Costa](https://github.com/julianocosta89), Datadog
-- [Pierre Tessier](https://github.com/puckpuck), Honeycomb
-- [Roger Coll](https://github.com/rogercoll), Elastic
-
-For more information about the maintainer role, see the [community repository](https://github.com/open-telemetry/community/blob/main/guides/contributor/membership.md#maintainer).
-
-### Approvers
-
-- [Cedric Ziel](https://github.com/cedricziel), Grafana Labs
-- [Mikko Viitanen](https://github.com/mviitane), Dynatrace
-- [Shenoy Pratik](https://github.com/ps48), AWS OpenSearch
-
-For more information about the approver role, see the [community repository](https://github.com/open-telemetry/community/blob/main/guides/contributor/membership.md#approver).
-
-### Emeritus
-
-- [Austin Parker](https://github.com/austinlparker)
-- [Carter Socha](https://github.com/cartersocha)
-- [Michael Maxwell](https://github.com/mic-max)
-- [Morgan McLean](https://github.com/mtwo)
-- [Penghan Wang](https://github.com/wph95)
-- [Reiley Yang](https://github.com/reyang)
-- [Ziqi Zhao](https://github.com/fatsheep9146)
-
-For more information about the emeritus role, see the [community repository](https://github.com/open-telemetry/community/blob/main/guides/contributor/membership.md#emeritus-maintainerapprovertriager).
-
-### Thanks to all the people who have contributed
-
-[![contributors](https://contributors-img.web.app/image?repo=open-telemetry/opentelemetry-demo)](https://github.com/open-telemetry/opentelemetry-demo/graphs/contributors)
-
-[docs]: https://opentelemetry.io/docs/demo/
-
-<!-- Links for Demos featuring the Astronomy Shop section -->
-
-[AlibabaCloud LogService]: https://github.com/aliyun-sls/opentelemetry-demo
-[AppDynamics]: https://community.splunk.com/t5/AppDynamics-Knowledge-Base/How-to-observe-Kubernetes-deployment-of-OpenTelemetry-demo-app/ta-p/741454
-[Apache Doris]: https://github.com/apache/doris-opentelemetry-demo
-[Aspecto]: https://github.com/aspecto-io/opentelemetry-demo
-[Axiom]: https://play.axiom.co/axiom-play-qf1k/dashboards/otel.traces.otel-demo-traces
-[Axoflow]: https://axoflow.com/opentelemetry-support-in-more-detail-in-axosyslog-and-syslog-ng/
-[Azure Data Explorer]: https://github.com/Azure/Azure-kusto-opentelemetry-demo
-[Causely]: https://github.com/causely-oss/otel-demo
-[ClickStack]: https://github.com/ClickHouse/opentelemetry-demo
-[Coralogix]: https://coralogix.com/blog/configure-otel-demo-send-telemetry-data-coralogix
-[Dash0]: https://github.com/dash0hq/opentelemetry-demo
-[Datadog]: https://docs.datadoghq.com/opentelemetry/guide/otel_demo_to_datadog
-[Dynatrace]: https://www.dynatrace.com/news/blog/opentelemetry-demo-application-with-dynatrace/
-[Elastic]: https://github.com/elastic/opentelemetry-demo
-[Google Cloud]: https://github.com/GoogleCloudPlatform/opentelemetry-demo
-[Grafana Labs]: https://github.com/grafana/opentelemetry-demo
-[Guance]: https://github.com/GuanceCloud/opentelemetry-demo
-[Honeycomb.io]: https://github.com/honeycombio/opentelemetry-demo
-[Instana]: https://github.com/instana/opentelemetry-demo
-[Kloudfuse]: https://github.com/kloudfuse/opentelemetry-demo
-[Kopai]: https://github.com/kopai-app/opentelemetry-demo/tree/main/kopai
-[Last9]: https://last9.io/docs/integrations-opentelemetry-demo/
-[Liatrio]: https://github.com/liatrio/opentelemetry-demo
-[Logz.io]: https://logz.io/learn/how-to-run-opentelemetry-demo-with-logz-io/
-[New Relic]: https://github.com/newrelic/opentelemetry-demo
-[Oodle]: https://blog.oodle.ai/meet-oodle-unified-and-ai-native-observability/
-[OpenSearch]: https://github.com/opensearch-project/opentelemetry-demo
-[OpenObserve]: https://openobserve.ai/blog/opentelemetry-astronomy-shop-demo/
-[Oracle]: https://github.com/oracle-quickstart/oci-o11y-solutions/blob/main/knowledge-content/opentelemetry-demo
-[Parseable]: https://www.parseable.com/blog/open-telemetry-demo-with-parseable-a-complete-observability-setup
-[Sentry]: https://github.com/getsentry/opentelemetry-demo
-[ServiceNow Cloud Observability]: https://docs.lightstep.com/otel/quick-start-operator#send-data-from-the-opentelemetry-demo
-[SigNoz]: https://signoz.io/blog/opentelemetry-demo/
-[SolarWinds Observability]: https://github.com/solarwinds/opentelemetry-demo
-[Splunk]: https://github.com/signalfx/opentelemetry-demo
-[Sumo Logic]: https://www.sumologic.com/blog/common-opentelemetry-demo-application/
-[TelemetryHub]: https://github.com/TelemetryHub/opentelemetry-demo/tree/telemetryhub-backend
-[Teletrace]: https://github.com/teletrace/opentelemetry-demo
-[Tinybird]: https://github.com/tinybirdco/opentelemetry-demo
-[Tracetest]: https://github.com/kubeshop/opentelemetry-demo
-[Tsuga]: https://github.com/tsuga-dev/opentelemetry-demo
-[Uptrace]: https://github.com/uptrace/uptrace/tree/master/example/opentelemetry-demo
-[VictoriaMetrics]: https://github.com/VictoriaMetrics-Community/opentelemetry-demo
+Apache 2.0 — see **[`LICENSE`](LICENSE)**.

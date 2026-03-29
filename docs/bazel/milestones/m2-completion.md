@@ -1,6 +1,6 @@
 # M2 completion report — First language wave (Go + Node)
 
-This document records **what was implemented** for milestone **M2** from `5-bazel-migration-task-backlog.md`:
+This document records **what was implemented** for milestone **M2** from `docs/planification/5-bazel-migration-task-backlog.md`:
 
 > **M2:** First language wave (**Go + one more**) fully **buildable** / **testable** in Bazel.
 

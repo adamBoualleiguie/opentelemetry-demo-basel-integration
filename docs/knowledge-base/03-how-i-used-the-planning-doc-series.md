@@ -46,7 +46,7 @@ flowchart TB
 
 ## The five planning “layers” I kept in my head
 
-Before touching code, I worked through **five kinds of thinking**. They match the numbered strategy write-ups at the **repo root** (integration blueprint, architecture, concepts, dev environment, task backlog). You do not need those filenames to learn this — here is what each **layer is for**:
+Before touching code, I worked through **five kinds of thinking**. They match the numbered strategy write-ups under **[`docs/planification/`](../planification/)** (integration blueprint, architecture, concepts, dev environment, task backlog). You do not need those filenames to learn this — here is what each **layer is for**:
 
 | Layer | Purpose in plain words |
 |-------|-------------------------|

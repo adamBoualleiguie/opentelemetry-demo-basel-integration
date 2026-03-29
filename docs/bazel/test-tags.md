@@ -1,6 +1,6 @@
 # Bazel test tags (BZ-130)
 
-This repo uses **tags** on `go_test`, and later `py_test` / `rust_test` / `js_test`, so CI and developers can filter **unit**, **integration**, **e2e**, and **trace**-heavy suites. Aligned with **`5-bazel-migration-task-backlog.md`** **BZ-130** and **`2-bazel-architecture-otel-shop-demo.md`** test taxonomy.
+This repo uses **tags** on `go_test`, and later `py_test` / `rust_test` / `js_test`, so CI and developers can filter **unit**, **integration**, **e2e**, and **trace**-heavy suites. Aligned with **`docs/planification/5-bazel-migration-task-backlog.md`** **BZ-130** and **`docs/planification/2-bazel-architecture-otel-shop-demo.md`** test taxonomy.
 
 ## `.bazelrc` configs (repo root)
 

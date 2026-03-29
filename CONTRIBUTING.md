@@ -81,11 +81,13 @@ Once the images are built and containers are started, visit:
 
 ### Bazel (migration fork)
 
+**Documentation map** (strategy series, narrated knowledge base, milestones, upstream-style demo readme): see the root **[README.md](README.md)**.
+
 If you use [Bazel](https://bazel.build/) in this fork, tests are classified with **tags** (`unit`, `integration`, `e2e`, …). Use **`--config=unit`** (defined in **`.bazelrc`**) to run only fast unit tests, or see **`docs/bazel/test-tags.md`** for the full convention and examples.
 
 PR checks run **`bash ./tools/bazel/ci/ci_full.sh`** (see **`tools/bazel/ci/README.md`**, **`docs/bazel/milestones/m4-completion.md`**, and **`docs/bazel/milestones/m5-completion.md`**). For a quicker loop locally (skips most **`oci_image`** builds), use **`bash ./tools/bazel/ci/ci_fast.sh`** or **`make bazel-ci-fast`** — you still need the same language toolchains as CI where those packages are built (e.g. **Composer** for **`//src/quote`**, **Elixir** for **`//src/flagd-ui`**). Command cheat sheet: **`docs/bazel/quickstart.md`**.
 
-**Proto / Go codegen (BZ-812):** prefer **`bazel run //:gazelle`** (and the **`//pb:*`** targets) over ad-hoc scripts. If legacy helper scripts exist in **`internal/tools`** or service READMEs, treat them as **deprecated** unless documented otherwise; align new work with **`5-bazel-migration-task-backlog.md`** (**BZ-038** / **BZ-812**).
+**Proto / Go codegen (BZ-812):** prefer **`bazel run //:gazelle`** (and the **`//pb:*`** targets) over ad-hoc scripts. If legacy helper scripts exist in **`internal/tools`** or service READMEs, treat them as **deprecated** unless documented otherwise; align new work with **`docs/planification/5-bazel-migration-task-backlog.md`** (**BZ-038** / **BZ-812**).
 
 **Optional remote cache (BZ-800):** create a gitignored **`.bazelrc.user`** (loaded via **`.bazelrc`** **`try-import`**) as described in **`docs/bazel/remote-cache.md`**.
 
